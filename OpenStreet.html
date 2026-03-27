@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Vacation Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .popup-img {
+            width: 200px;
+            height: auto;
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script>
+        // 1. Initialize the map
+        const map = L.map('map').setView([51.505, -0.09], 5);
+
+        // 2. Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 3. Add markers with images
+        function addMarker(lat, lng, title, description, imageUrl) {
+            const marker = L.marker([lat, lng]).addTo(map);
+
+            const popupContent = `
+                <b>${title}</b><br>
+                ${description}<br>
+                <img src="${imageUrl}" class="popup-img" />
+                `;
+
+            marker.bindPopup(popupContent);
+        }
+
+        // const routingControl = L.Routing.control({
+        //     waypoints: [
+        //         L.latLng(48.8566, 2.3522), // Paris
+        //         L.latLng(41.9028, 12.4964) // Rome
+        //     ],
+        //     routeWhileDragging: true, // 🔥 enables drag & drop
+        //     draggableWaypoints: true, // allow moving points
+        //     addWaypoints: true // click route to add stops
+        // }).addTo(map);
+
+        fetch('onetrip.json')
+            .then(response => response.json())
+            .then(data => {
+                loadTrip(data);
+            })
+            .catch(err => console.error(err));
+
+        function loadTrip(trip) {
+            const waypoints = [];
+
+            trip.stops.forEach(stop => {
+
+                // Add marker with your existing function
+                addMarker(
+                    stop.lat,
+                    stop.lng,
+                    stop.title,
+                    stop.description,
+                    stop.image
+                );
+
+                // Collect for routing
+                waypoints.push(L.latLng(stop.lat, stop.lng));
+            });
+
+            // Create route using Routing Machine
+            // L.Routing.control({
+            //     waypoints: waypoints,
+            //     routeWhileDragging: true,
+            //     color: 'red'
+            // }).addTo(map);
+            L.polyline(waypoints, {
+                color: 'red'
+            }).addTo(map);
+        }
+
+        map.on('click', function(e) {
+            const {
+                lat,
+                lng
+            } = e.latlng;
+
+            L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup(`Lat: ${lat.toFixed(5)}<br>Lng: ${lng.toFixed(5)}`)
+                .openPopup();
+
+            console.log(lat, lng);
+        });
+
+        const karibik = [{
+            lat: 18.42229,
+            lng: -68.96496,
+            title: "La Romana",
+            desc: "Day 1",
+            img: "laromana.jpg"
+        }, {
+            lat: 18.01196,
+            lng: -63.04341,
+            title: "St. Marten",
+            desc: "Day 3",
+            img: "rome.jpg"
+        }, {
+            lat: 17.29175,
+            lng: -62.72277,
+            title: "St. Kitts",
+            desc: "Day 3",
+            img: "rome.jpg"
+        }];
+
+        // karibik.forEach(p => {
+        //     addMarker(p.lat, p.lng, p.title, p.desc, p.img);
+        // });
+        // const sailroute = karibik.map(p => [p.lat, p.lng]);
+        // L.polyline(sailroute, {
+        //     color: 'red'
+        // }).addTo(map);
+
+
+        // Fit map to route
+        //map.fitBounds(route.getBounds());
+    </script>
+
+</body>
+
+</html>

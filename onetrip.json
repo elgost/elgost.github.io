@@ -1,0 +1,60 @@
+{
+    "name": "Caribbean Trip",
+    "stops": [{
+            "title": "La Romana",
+            "lat": 18.42229,
+            "lng": -68.96496,
+            "description": "Start of the trip",
+            "image": "images/paris.jpg"
+        },
+        {
+            "title": "St. Marten",
+            "lat": 18.01281,
+            "lng": -63.04530,
+            "description": "Day 3",
+            "image": "images/milan.jpg"
+        },
+        {
+            "title": "St. Kitts",
+            "lat": 17.29191,
+            "lng": -62.72276,
+            "description": "Day 4",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "Guadeloupe",
+            "lat": 16.23824,
+            "lng": -61.53919,
+            "description": "Day 5",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "Dominica",
+            "lat": 15.29573,
+            "lng": -61.38844,
+            "description": "Day 6",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "St. Lucia",
+            "lat": 14.01124,
+            "lng": -60.99274,
+            "description": "Day 7",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "Barbados",
+            "lat": 13.10319,
+            "lng": -59.63244,
+            "description": "Day 8",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "Martinique",
+            "lat": 14.60110,
+            "lng": -61.06053,
+            "description": "Day 9",
+            "image": "images/rome.jpg"
+        }
+    ]
+}
