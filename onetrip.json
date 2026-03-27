@@ -55,6 +55,27 @@
             "lng": -61.06053,
             "description": "Day 9",
             "image": "images/rome.jpg"
+        },
+        {
+            "title": "Curascao",
+            "lat": 12.10871,
+            "lng": -68.93406,
+            "description": "Day 11",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "Aruba",
+            "lat": 12.51791,
+            "lng": -70.04079,
+            "description": "Day 12",
+            "image": "images/rome.jpg"
+        },
+        {
+            "title": "La Romana",
+            "lat": 18.42229,
+            "lng": -68.96496,
+            "description": "End of the trip",
+            "image": "images/paris.jpg"
         }
     ]
 }
