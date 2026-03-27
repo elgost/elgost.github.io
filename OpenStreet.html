@@ -55,23 +55,6 @@
             marker.bindPopup(popupContent);
         }
 
-        // const routingControl = L.Routing.control({
-        //     waypoints: [
-        //         L.latLng(48.8566, 2.3522), // Paris
-        //         L.latLng(41.9028, 12.4964) // Rome
-        //     ],
-        //     routeWhileDragging: true, // 🔥 enables drag & drop
-        //     draggableWaypoints: true, // allow moving points
-        //     addWaypoints: true // click route to add stops
-        // }).addTo(map);
-
-        fetch('onetrip.json')
-            .then(response => response.json())
-            .then(data => {
-                loadTrip(data);
-            })
-            .catch(err => console.error(err));
-
         function loadTrip(trip) {
             const waypoints = [];
 
@@ -86,19 +69,26 @@
                     stop.image
                 );
 
-                // Collect for routing
+                // Collect for polylines
                 waypoints.push(L.latLng(stop.lat, stop.lng));
             });
-
-            // Create route using Routing Machine
-            // L.Routing.control({
-            //     waypoints: waypoints,
-            //     routeWhileDragging: true,
-            //     color: 'red'
-            // }).addTo(map);
             L.polyline(waypoints, {
                 color: 'red'
             }).addTo(map);
+        }
+
+        //Import from JSON file
+        fetch('moretrips.json')
+            .then(response => response.json())
+            .then(data => {
+                loadTrips(data);
+            })
+            .catch(err => console.error(err));
+
+        function loadTrips(trips) {
+            trips.trips.forEach(trip => {
+                loadTrip(trip);
+            });
         }
 
         map.on('click', function(e) {
@@ -114,35 +104,6 @@
 
             console.log(lat, lng);
         });
-
-        const karibik = [{
-            lat: 18.42229,
-            lng: -68.96496,
-            title: "La Romana",
-            desc: "Day 1",
-            img: "laromana.jpg"
-        }, {
-            lat: 18.01196,
-            lng: -63.04341,
-            title: "St. Marten",
-            desc: "Day 3",
-            img: "rome.jpg"
-        }, {
-            lat: 17.29175,
-            lng: -62.72277,
-            title: "St. Kitts",
-            desc: "Day 3",
-            img: "rome.jpg"
-        }];
-
-        // karibik.forEach(p => {
-        //     addMarker(p.lat, p.lng, p.title, p.desc, p.img);
-        // });
-        // const sailroute = karibik.map(p => [p.lat, p.lng]);
-        // L.polyline(sailroute, {
-        //     color: 'red'
-        // }).addTo(map);
-
 
         // Fit map to route
         //map.fitBounds(route.getBounds());
