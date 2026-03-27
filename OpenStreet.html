@@ -33,6 +33,8 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/leaflet-curve/leaflet.curve.js"></script>
+
     <script>
         // 1. Initialize the map
         const map = L.map('map').setView([51.505, -0.09], 5);
@@ -55,6 +57,33 @@
             marker.bindPopup(popupContent);
         }
 
+        function drawCurvedRoute(stops) {
+
+            for (let i = 0; i < stops.length - 1; i++) {
+
+                const start = [stops[i].lat, stops[i].lng];
+                const end = [stops[i + 1].lat, stops[i + 1].lng];
+
+                // create a curved control point
+                const offset = 1; // adjust curve strength
+
+                const controlPoint = [
+                    (start[0] + end[0]) / 2 + offset,
+                    (start[1] + end[1]) / 2
+                ];
+
+                L.curve([
+                    'M', start,
+                    'Q', controlPoint,
+                    end
+                ], {
+                    color: 'blue',
+                    weight: 3,
+                    dashArray: '5, 10' // optional: dashed for "sea route"
+                }).addTo(map);
+            }
+        }
+
         function loadTrip(trip) {
             const waypoints = [];
 
@@ -72,9 +101,11 @@
                 // Collect for polylines
                 waypoints.push(L.latLng(stop.lat, stop.lng));
             });
-            L.polyline(waypoints, {
-                color: 'red'
-            }).addTo(map);
+
+            drawCurvedRoute(trip.stops);
+            // L.polyline(waypoints, {
+            //     color: 'red'
+            // }).addTo(map);
         }
 
         //Import from JSON file
