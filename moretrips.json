@@ -94,28 +94,28 @@
                     "lat": 28.49396,
                     "lng": -13.85545,
                     "description": "Day 2",
-                    "image": "images/milan.jpg"
+                    "image": "photos/canary/fuerteventura.jpg"
                 },
                 {
                     "title": "Lanzarote",
                     "lat": 28.96610,
                     "lng": -13.53330,
                     "description": "Day 3",
-                    "image": "images/rome.jpg"
+                    "image": "photos/canary/lanzarote.jpg"
                 },
                 {
                     "title": "Gran Canaria",
                     "lat": 28.14020,
                     "lng": -15.42434,
                     "description": "Day 4",
-                    "image": "images/rome.jpg"
+                    "image": "photos/canary/granca.jpg"
                 },
                 {
                     "title": "Madeira",
                     "lat": 32.64204,
                     "lng": -16.90942,
                     "description": "Day 6",
-                    "image": "images/rome.jpg"
+                    "image": "photos/canary/madeira.jpg"
                 },
                 {
                     "title": "Tenerife",
@@ -133,42 +133,42 @@
                     "lat": 39.54962,
                     "lng": 2.63809,
                     "description": "Start of the trip",
-                    "image": "images/paris.jpg"
+                    "image": "photos/mediterranean/palma.jpg"
                 },
                 {
                     "title": "La Spezia",
                     "lat": 44.10425,
                     "lng": 9.83313,
                     "description": "Day 2",
-                    "image": "images/milan.jpg"
+                    "image": "photos/mediterranean/pisa.jpg"
                 },
                 {
                     "title": "Civitavecchia",
                     "lat": 42.09787,
                     "lng": 11.77466,
                     "description": "Day 3",
-                    "image": "images/rome.jpg"
+                    "image": "photos/mediterranean/roma.jpg"
                 },
                 {
                     "title": "Ajaccio",
                     "lat": 41.92051,
                     "lng": 8.74272,
                     "description": "Day 4",
-                    "image": "images/rome.jpg"
+                    "image": "photos/mediterranean/korsika.jpg"
                 },
                 {
                     "title": "Barcelona",
                     "lat": 41.32794,
                     "lng": 2.16997,
                     "description": "Day 6",
-                    "image": "images/rome.jpg"
+                    "image": "photos/mediterranean/barcelona.jpg"
                 },
                 {
                     "title": "Mallorca",
                     "lat": 39.54962,
                     "lng": 2.63809,
                     "description": "End of the trip",
-                    "image": "images/paris.jpg"
+                    "image": "photos/mediterranean/palma.jpg"
                 }
             ]
         }
