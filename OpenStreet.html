@@ -58,7 +58,7 @@
         }
 
         function drawCurvedRoute(stops) {
-
+            const curves = [];
             for (let i = 0; i < stops.length - 1; i++) {
 
                 const start = [stops[i].lat, stops[i].lng];
@@ -72,7 +72,7 @@
                     (start[1] + end[1]) / 2
                 ];
 
-                L.curve([
+                curves.push(L.curve([
                     'M', start,
                     'Q', controlPoint,
                     end
@@ -80,9 +80,40 @@
                     color: 'blue',
                     weight: 3,
                     dashArray: '5, 10' // optional: dashed for "sea route"
-                }).addTo(map);
+                }));
             }
+            return curves;
         }
+
+        const tripLayers = {}; // store all trips
+
+        function createTripLayer(trip) {
+
+            const layer = L.layerGroup();
+
+            const waypoints = [];
+
+            trip.stops.forEach(stop => {
+
+                const marker = L.marker([stop.lat, stop.lng])
+                    .bindPopup(`
+                <b>${stop.title}</b><br>
+                ${stop.description}<br>
+                <img src="${stop.image}" class="popup-img"/>
+            `);
+
+                marker.addTo(layer);
+
+                waypoints.push([stop.lat, stop.lng]);
+            });
+
+            const route = drawCurvedRoute(trip.stops);
+            route.forEach(r => r.addTo(layer));
+
+            return layer;
+        }
+
+        const overlays = {};
 
         function loadTrip(trip) {
             const waypoints = [];
@@ -116,10 +147,22 @@
             })
             .catch(err => console.error(err));
 
-        function loadTrips(trips) {
-            trips.trips.forEach(trip => {
-                loadTrip(trip);
+        function loadTrips(data) {
+
+            data.trips.forEach(trip => {
+
+                const layer = createTripLayer(trip);
+
+                tripLayers[trip.name] = layer;
+                overlays[trip.name] = layer;
+
+                layer.addTo(map); // show by default
             });
+
+            // Add checkbox control
+            // L.control.layers(null, overlays, {
+            //     collapsed: false // keep it open
+            // }).addTo(map);
         }
 
         map.on('click', function(e) {
@@ -135,6 +178,39 @@
 
             console.log(lat, lng);
         });
+
+
+        // Airports
+
+        //Import from JSON file
+        fetch('resources/airports.json')
+            .then(response => response.json())
+            .then(data => {
+                loadAirports(data);
+            })
+            .catch(err => console.error(err));
+
+        function loadAirports(data) {
+            const layer = L.layerGroup();
+            data.airports.forEach(airport => {
+                const marker = L.marker([airport.lat, airport.lng])
+                    .bindPopup(`
+                <b>${airport.code}</b><br>
+                ${airport.name}<br>
+            `);
+
+                marker.addTo(layer);
+            });
+
+            tripLayers["Airports"] = layer;
+            overlays["Airports"] = layer;
+            layer.addTo(map);
+
+            L.control.layers(null, overlays, {
+                collapsed: false // keep it open
+            }).addTo(map);
+        }
+
 
         // Fit map to route
         //map.fitBounds(route.getBounds());

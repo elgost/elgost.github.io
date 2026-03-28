@@ -1,0 +1,67 @@
+{
+    "airports": [
+        { "code": "BGO", "icao": "ENBR", "name": "Bergen Airport", "lat": 60.2934, "lng": 5.2181 },
+        { "code": "OSL", "icao": "ENGM", "name": "Oslo Airport", "lat": 60.1939, "lng": 11.1004 },
+        { "code": "KRS", "icao": "ENCN", "name": "Kristiansand Airport", "lat": 58.2042, "lng": 8.0854 },
+        { "code": "TRD", "icao": "ENVA", "name": "Trondheim Airport", "lat": 63.4578, "lng": 10.9240 },
+        { "code": "SVG", "icao": "ENZV", "name": "Stavanger Airport", "lat": 58.8767, "lng": 5.6378 },
+        { "code": "AES", "icao": "ENAL", "name": "Ålesund Airport", "lat": 62.5625, "lng": 6.1197 },
+        { "code": "FBU", "icao": "ENFB", "name": "Oslo Fornebu Airport", "lat": 59.8950, "lng": 10.6172 },
+        { "code": "TRF", "icao": "ENTO", "name": "Sandefjord Airport", "lat": 59.1867, "lng": 10.2586 },
+
+        { "code": "AMS", "icao": "EHAM", "name": "Amsterdam Schiphol Airport", "lat": 52.3105, "lng": 4.7683 },
+        { "code": "DUS", "icao": "EDDL", "name": "Düsseldorf Airport", "lat": 51.2895, "lng": 6.7668 },
+        { "code": "FRA", "icao": "EDDF", "name": "Frankfurt Airport", "lat": 50.0379, "lng": 8.5622 },
+        { "code": "SXF", "icao": "EDDB", "name": "Berlin Schönefeld Airport", "lat": 52.3800, "lng": 13.5225 },
+        { "code": "CGN", "icao": "EDDK", "name": "Cologne Bonn Airport", "lat": 50.8659, "lng": 7.1427 },
+        { "code": "MUC", "icao": "EDDM", "name": "Munich Airport", "lat": 48.3538, "lng": 11.7861 },
+        { "code": "VIE", "icao": "LOWW", "name": "Vienna International Airport", "lat": 48.1103, "lng": 16.5697 },
+        { "code": "ZRH", "icao": "LSZH", "name": "Zurich Airport", "lat": 47.4581, "lng": 8.5555 },
+
+        { "code": "FLR", "icao": "LIRQ", "name": "Florence Airport", "lat": 43.8100, "lng": 11.2051 },
+        { "code": "FCO", "icao": "LIRF", "name": "Leonardo da Vinci–Fiumicino Airport", "lat": 41.8003, "lng": 12.2389 },
+        { "code": "ZAG", "icao": "LDZA", "name": "Zagreb Airport", "lat": 45.7429, "lng": 16.0688 },
+
+        { "code": "ARN", "icao": "ESSA", "name": "Stockholm Arlanda Airport", "lat": 59.6519, "lng": 17.9186 },
+        { "code": "CPH", "icao": "EKCH", "name": "Copenhagen Airport", "lat": 55.6181, "lng": 12.6560 },
+        { "code": "HEL", "icao": "EFHK", "name": "Helsinki Airport", "lat": 60.3172, "lng": 24.9633 },
+        { "code": "VAA", "icao": "EFVA", "name": "Vaasa Airport", "lat": 63.0507, "lng": 21.7622 },
+        { "code": "LED", "icao": "ULLI", "name": "Pulkovo Airport", "lat": 59.8003, "lng": 30.2625 },
+
+        { "code": "LHR", "icao": "EGLL", "name": "London Heathrow Airport", "lat": 51.4700, "lng": -0.4543 },
+        { "code": "EDI", "icao": "EGPH", "name": "Edinburgh Airport", "lat": 55.9500, "lng": -3.3725 },
+        { "code": "CFU", "icao": "LGKR", "name": "Corfu International Airport", "lat": 39.6019, "lng": 19.9117 },
+
+        { "code": "DXB", "icao": "OMDB", "name": "Dubai International Airport", "lat": 25.2532, "lng": 55.3657 },
+        { "code": "LGW", "icao": "EGKK", "name": "London Gatwick Airport", "lat": 51.1537, "lng": -0.1821 },
+        { "code": "LCY", "icao": "EGLC", "name": "London City Airport", "lat": 51.5053, "lng": 0.0553 },
+        { "code": "ABZ", "icao": "EGPD", "name": "Aberdeen Airport", "lat": 57.2019, "lng": -2.1978 },
+        { "code": "CDG", "icao": "LFPG", "name": "Paris Charles de Gaulle Airport", "lat": 49.0097, "lng": 2.5479 },
+
+        { "code": "PMI", "icao": "LEPA", "name": "Palma de Mallorca Airport", "lat": 39.5517, "lng": 2.7388 },
+        { "code": "TFS", "icao": "GCTS", "name": "Tenerife South Airport", "lat": 28.0445, "lng": -16.5725 },
+
+        { "code": "KIX", "icao": "RJBB", "name": "Kansai International Airport", "lat": 34.4347, "lng": 135.2440 },
+
+        { "code": "SEA", "icao": "KSEA", "name": "Seattle-Tacoma International Airport", "lat": 47.4502, "lng": -122.3088 },
+        { "code": "PDX", "icao": "KPDX", "name": "Portland International Airport", "lat": 45.5898, "lng": -122.5951 },
+        { "code": "SFO", "icao": "KSFO", "name": "San Francisco International Airport", "lat": 37.6213, "lng": -122.3790 },
+        { "code": "LAX", "icao": "KLAX", "name": "Los Angeles International Airport", "lat": 33.9416, "lng": -118.4085 },
+        { "code": "SAN", "icao": "KSAN", "name": "San Diego International Airport", "lat": 32.7338, "lng": -117.1933 },
+        { "code": "PHX", "icao": "KPHX", "name": "Phoenix Sky Harbor International Airport", "lat": 33.4342, "lng": -112.0116 },
+        { "code": "BIL", "icao": "KBIL", "name": "Billings Logan International Airport", "lat": 45.8077, "lng": -108.5429 },
+        { "code": "DEN", "icao": "KDEN", "name": "Denver International Airport", "lat": 39.8561, "lng": -104.6737 },
+        { "code": "MSP", "icao": "KMSP", "name": "Minneapolis-Saint Paul International Airport", "lat": 44.8848, "lng": -93.2223 },
+        { "code": "IAD", "icao": "KIAD", "name": "Washington Dulles International Airport", "lat": 38.9531, "lng": -77.4565 },
+        { "code": "JFK", "icao": "KJFK", "name": "John F. Kennedy International Airport", "lat": 40.6413, "lng": -73.7781 },
+        { "code": "LGA", "icao": "KLGA", "name": "LaGuardia Airport", "lat": 40.7769, "lng": -73.8740 },
+        { "code": "ATL", "icao": "KATL", "name": "Hartsfield-Jackson Atlanta International Airport", "lat": 33.6407, "lng": -84.4277 },
+
+        { "code": "MEL", "icao": "YMML", "name": "Melbourne Airport", "lat": -37.6733, "lng": 144.8433 },
+        { "code": "SYD", "icao": "YSSY", "name": "Sydney Kingsford Smith Airport", "lat": -33.9399, "lng": 151.1753 },
+        { "code": "OOL", "icao": "YBCG", "name": "Gold Coast Airport", "lat": -28.1644, "lng": 153.5048 },
+        { "code": "HBA", "icao": "YMHB", "name": "Hobart Airport", "lat": -42.8361, "lng": 147.5103 },
+
+        { "code": "LRM", "icao": "MDLR", "name": "La Romana International Airport", "lat": 18.4507, "lng": -68.9118 }
+    ]
+}
