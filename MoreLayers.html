@@ -15,7 +15,7 @@
             height: 100vh;
             width: 100%;
         }
-
+        
         .popup-img {
             width: 200px;
             height: auto;
@@ -34,6 +34,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
     <script src="https://unpkg.com/leaflet-curve/leaflet.curve.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.control.layers.tree/L.Control.Layers.Tree.css" />
+    <script src="https://unpkg.com/leaflet.control.layers.tree/L.Control.Layers.Tree.js"></script>
 
     <script>
         // 1. Initialize the map
@@ -85,7 +87,33 @@
             return curves;
         }
 
-        const tripLayers = {}; // store all trips
+        const cruiseLayers = {}; // store all cruises
+        const tripLayers = []; // store all trips
+
+        let tripData;
+        let airportData;
+        async function init() {
+            const res = await fetch('moretrips.json');
+            tripData = await res.json();
+            const cruiseTree = loadTrips(tripData);
+            tripLayers.push(cruiseTree);
+
+            const airportRes = await fetch('resources/airports.json');
+            airportData = await airportRes.json();
+            const airportLayer = loadAirports(airportData);
+
+            const tree = {
+                label: "Others",
+                children: [{
+                    label: "Airports",
+                    layer: airportLayer
+                }]
+            };
+            tripLayers.push(tree);
+            L.control.layers.tree(null, tripLayers, {
+                collapsed: false
+            }).addTo(map);
+        }
 
         function createTripLayer(trip) {
 
@@ -139,15 +167,11 @@
             // }).addTo(map);
         }
 
-        //Import from JSON file
-        fetch('moretrips.json')
-            .then(response => response.json())
-            .then(data => {
-                loadTrips(data);
-            })
-            .catch(err => console.error(err));
-
         function loadTrips(data) {
+            const tree = {
+                label: "Cruise Trips",
+                children: []
+            };
 
             data.trips.forEach(trip => {
 
@@ -156,13 +180,14 @@
                 tripLayers[trip.name] = layer;
                 overlays[trip.name] = layer;
 
+                tree.children.push({
+                    label: trip.name,
+                    layer: layer
+                });
+
                 layer.addTo(map); // show by default
             });
-
-            // Add checkbox control
-            // L.control.layers(null, overlays, {
-            //     collapsed: false // keep it open
-            // }).addTo(map);
+            return tree;
         }
 
         map.on('click', function(e) {
@@ -182,14 +207,6 @@
 
         // Airports
 
-        //Import from JSON file
-        fetch('resources/airports.json')
-            .then(response => response.json())
-            .then(data => {
-                loadAirports(data);
-            })
-            .catch(err => console.error(err));
-
         function loadAirports(data) {
             const layer = L.layerGroup();
             data.airports.forEach(airport => {
@@ -206,12 +223,10 @@
             overlays["Airports"] = layer;
             layer.addTo(map);
 
-            L.control.layers(null, overlays, {
-                collapsed: false // keep it open
-            }).addTo(map);
+            return layer;
         }
 
-
+        init();
         // Fit map to route
         //map.fitBounds(route.getBounds());
     </script>

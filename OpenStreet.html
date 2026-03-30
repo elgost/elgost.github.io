@@ -34,6 +34,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
     <script src="https://unpkg.com/leaflet-curve/leaflet.curve.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.control.layers.tree/L.Control.Layers.Tree.css" />
+    <script src="https://unpkg.com/leaflet.control.layers.tree/L.Control.Layers.Tree.js"></script>
 
     <script>
         // 1. Initialize the map
@@ -147,22 +149,30 @@
             })
             .catch(err => console.error(err));
 
+        const checkTrees = [];
+
         function loadTrips(data) {
+            const tree = {
+                label: "Cruise Trips",
+                children: []
+            };
 
             data.trips.forEach(trip => {
 
                 const layer = createTripLayer(trip);
 
                 tripLayers[trip.name] = layer;
-                overlays[trip.name] = layer;
 
                 layer.addTo(map); // show by default
+                tree.children.push({
+                    label: trip.name,
+                    layer: layer
+                });
             });
-
-            // Add checkbox control
-            // L.control.layers(null, overlays, {
-            //     collapsed: false // keep it open
-            // }).addTo(map);
+            checkTrees.push(tree);
+            L.control.layers.tree(null, tree, {
+                collapsed: false
+            }).addTo(map);
         }
 
         map.on('click', function(e) {
@@ -186,6 +196,7 @@
         fetch('resources/airports.json')
             .then(response => response.json())
             .then(data => {
+                // buildCheckTree()
                 loadAirports(data);
             })
             .catch(err => console.error(err));
@@ -211,7 +222,11 @@
             }).addTo(map);
         }
 
-
+        function buildCheckTree() {
+            checkTrees.forEach(tree => {
+                overlays[tree.label] = L.layerGroup(tree.children.map(c => c.layer));
+            });
+        }
         // Fit map to route
         //map.fitBounds(route.getBounds());
     </script>
