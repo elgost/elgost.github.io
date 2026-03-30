@@ -1,1 +1,221 @@
-Test 
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Vacation Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+
+    <style>
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        .popup-img {
+            width: 200px;
+            height: auto;
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <script src="https://unpkg.com/leaflet-curve/leaflet.curve.js"></script>
+
+    <script>
+        // 1. Initialize the map
+        const map = L.map('map').setView([51.505, -0.09], 5);
+
+        // 2. Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 3. Add markers with images
+        function addMarker(lat, lng, title, description, imageUrl) {
+            const marker = L.marker([lat, lng]).addTo(map);
+
+            const popupContent = `
+                <b>${title}</b><br>
+                ${description}<br>
+                <img src="${imageUrl}" class="popup-img" />
+                `;
+
+            marker.bindPopup(popupContent);
+        }
+
+        function drawCurvedRoute(stops) {
+            const curves = [];
+            for (let i = 0; i < stops.length - 1; i++) {
+
+                const start = [stops[i].lat, stops[i].lng];
+                const end = [stops[i + 1].lat, stops[i + 1].lng];
+
+                // create a curved control point
+                const offset = 1; // adjust curve strength
+
+                const controlPoint = [
+                    (start[0] + end[0]) / 2 + offset,
+                    (start[1] + end[1]) / 2
+                ];
+
+                curves.push(L.curve([
+                    'M', start,
+                    'Q', controlPoint,
+                    end
+                ], {
+                    color: 'blue',
+                    weight: 3,
+                    dashArray: '5, 10' // optional: dashed for "sea route"
+                }));
+            }
+            return curves;
+        }
+
+        const tripLayers = {}; // store all trips
+
+        function createTripLayer(trip) {
+
+            const layer = L.layerGroup();
+
+            const waypoints = [];
+
+            trip.stops.forEach(stop => {
+
+                const marker = L.marker([stop.lat, stop.lng])
+                    .bindPopup(`
+                <b>${stop.title}</b><br>
+                ${stop.description}<br>
+                <img src="${stop.image}" class="popup-img"/>
+            `);
+
+                marker.addTo(layer);
+
+                waypoints.push([stop.lat, stop.lng]);
+            });
+
+            const route = drawCurvedRoute(trip.stops);
+            route.forEach(r => r.addTo(layer));
+
+            return layer;
+        }
+
+        const overlays = {};
+
+        function loadTrip(trip) {
+            const waypoints = [];
+
+            trip.stops.forEach(stop => {
+
+                // Add marker with your existing function
+                addMarker(
+                    stop.lat,
+                    stop.lng,
+                    stop.title,
+                    stop.description,
+                    stop.image
+                );
+
+                // Collect for polylines
+                waypoints.push(L.latLng(stop.lat, stop.lng));
+            });
+
+            drawCurvedRoute(trip.stops);
+            // L.polyline(waypoints, {
+            //     color: 'red'
+            // }).addTo(map);
+        }
+
+        //Import from JSON file
+        fetch('moretrips.json')
+            .then(response => response.json())
+            .then(data => {
+                loadTrips(data);
+            })
+            .catch(err => console.error(err));
+
+        function loadTrips(data) {
+
+            data.trips.forEach(trip => {
+
+                const layer = createTripLayer(trip);
+
+                tripLayers[trip.name] = layer;
+                overlays[trip.name] = layer;
+
+                layer.addTo(map); // show by default
+            });
+
+            // Add checkbox control
+            // L.control.layers(null, overlays, {
+            //     collapsed: false // keep it open
+            // }).addTo(map);
+        }
+
+        map.on('click', function(e) {
+            const {
+                lat,
+                lng
+            } = e.latlng;
+
+            L.marker([lat, lng])
+                .addTo(map)
+                .bindPopup(`Lat: ${lat.toFixed(5)}<br>Lng: ${lng.toFixed(5)}`)
+                .openPopup();
+
+            console.log(lat, lng);
+        });
+
+
+        // Airports
+
+        //Import from JSON file
+        fetch('resources/airports.json')
+            .then(response => response.json())
+            .then(data => {
+                loadAirports(data);
+            })
+            .catch(err => console.error(err));
+
+        function loadAirports(data) {
+            const layer = L.layerGroup();
+            data.airports.forEach(airport => {
+                const marker = L.marker([airport.lat, airport.lng])
+                    .bindPopup(`
+                <b>${airport.code}</b><br>
+                ${airport.name}<br>
+            `);
+
+                marker.addTo(layer);
+            });
+
+            tripLayers["Airports"] = layer;
+            overlays["Airports"] = layer;
+            layer.addTo(map);
+
+            L.control.layers(null, overlays, {
+                collapsed: false // keep it open
+            }).addTo(map);
+        }
+
+
+        // Fit map to route
+        //map.fitBounds(route.getBounds());
+    </script>
+
+</body>
+
+</html>
