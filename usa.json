@@ -1,0 +1,90 @@
+{
+    "trips": [{
+        "name": "2018",
+        "stops": [{
+                "title": "Sea-Tac",
+                "lat": 47.46120,
+                "lng": -122.29325,
+                "description": "Start of the trip",
+                "image": ""
+            },
+            {
+                "title": "Tumwater",
+                "lat": 46.98924,
+                "lng": -122.91531,
+                "description": "Day 3",
+                "image": ""
+            },
+            {
+                "title": "Mt. St. Helens",
+                "lat": 46.27672,
+                "lng": -122.21655,
+                "description": "Day 4",
+                "image": ""
+            },
+            {
+                "title": "Vancouver",
+                "lat": 45.65915,
+                "lng": -122.57489,
+                "description": "Day 5",
+                "image": ""
+            },
+            {
+                "title": "Portland Rose Garden",
+                "lat": 45.51909,
+                "lng": -122.70614,
+                "description": "Day 6",
+                "image": ""
+            },
+            {
+                "title": "Tillamook",
+                "lat": 45.48323,
+                "lng": -123.84328,
+                "description": "Day 7",
+                "image": ""
+            },
+            {
+                "title": "Ecola State park",
+                "lat": 45.91940,
+                "lng": -123.97413,
+                "description": "Day 8",
+                "image": ""
+            },
+            {
+                "title": "Chimacum",
+                "lat": 48.01326,
+                "lng": -122.78290,
+                "description": "Day 9",
+                "image": ""
+            },
+            {
+                "title": "La Push",
+                "lat": 47.90904,
+                "lng": -124.63715,
+                "description": "Day 11",
+                "image": ""
+            },
+            {
+                "title": "Ruby Beach",
+                "lat": 47.71089,
+                "lng": -124.41590,
+                "description": "Day 12",
+                "image": ""
+            },
+            {
+                "title": "Poulsbo",
+                "lat": 47.82080,
+                "lng": -122.64698,
+                "description": "End of the trip",
+                "image": ""
+            },
+            {
+                "title": "Lumen Field",
+                "lat": 47.59518,
+                "lng": -122.33163,
+                "description": "End of the trip",
+                "image": ""
+            }
+        ]
+    }]
+}

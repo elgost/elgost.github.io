@@ -95,7 +95,7 @@
         async function init() {
             const res = await fetch('moretrips.json');
             tripData = await res.json();
-            const cruiseTree = loadTrips(tripData);
+            const cruiseTree = loadCruises(tripData);
             tripLayers.push(cruiseTree);
 
             const airportRes = await fetch('resources/airports.json');
@@ -143,10 +143,10 @@
 
         const overlays = {};
 
-        function loadTrip(trip) {
+        function loadCruise(cruise) {
             const waypoints = [];
 
-            trip.stops.forEach(stop => {
+            cruise.stops.forEach(stop => {
 
                 // Add marker with your existing function
                 addMarker(
@@ -167,7 +167,7 @@
             // }).addTo(map);
         }
 
-        function loadTrips(data) {
+        function loadCruises(data) {
             const tree = {
                 label: "Cruise Trips",
                 children: []
