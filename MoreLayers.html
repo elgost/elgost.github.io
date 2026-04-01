@@ -66,23 +66,42 @@
                 const start = [stops[i].lat, stops[i].lng];
                 const end = [stops[i + 1].lat, stops[i + 1].lng];
 
+                if (stops[i].boat) {
+                    // If it's a boat route, use a dashed line
+                    const offset = 1; // adjust curve strength
+
+                    const controlPoint = [
+                        (start[0] + end[0]) / 2 + offset,
+                        (start[1] + end[1]) / 2
+                    ];
+
+                    curves.push(L.curve([
+                        'M', start,
+                        'Q', controlPoint,
+                        end
+                    ], {
+                        color: 'blue',
+                        weight: 3,
+                        dashArray: '5, 10' // optional: dashed for "sea route"
+                    }));
+                } else {
+                    // For land routes, use a route
+                    // L.Routing.control({
+                    //     waypoints: [
+                    //         [stops[i].lat, stops[i].lng],
+                    //         [stops[i + 1].lat, stops[i + 1].lng]
+                    //     ],
+                    //     routeWhileDragging: true
+                    // }).addTo(map);
+
+                    curves.push(L.polyline([start, end], {
+                        color: 'red',
+                        weight: 3,
+                        dashArray: '5, 10' // dashed for "sea route"
+                    }));
+                }
                 // create a curved control point
-                const offset = 1; // adjust curve strength
 
-                const controlPoint = [
-                    (start[0] + end[0]) / 2 + offset,
-                    (start[1] + end[1]) / 2
-                ];
-
-                curves.push(L.curve([
-                    'M', start,
-                    'Q', controlPoint,
-                    end
-                ], {
-                    color: 'blue',
-                    weight: 3,
-                    dashArray: '5, 10' // optional: dashed for "sea route"
-                }));
             }
             return curves;
         }
@@ -110,6 +129,13 @@
                 }]
             };
             tripLayers.push(tree);
+
+            const usares = await fetch('usa.json');
+            usaData = await usares.json();
+            const usaTree = loadUSA(usaData);
+
+            tripLayers.push(usaTree);
+
             L.control.layers.tree(null, tripLayers, {
                 collapsed: false
             }).addTo(map);
@@ -188,6 +214,27 @@
                 layer.addTo(map); // show by default
             });
             return tree;
+        }
+
+        function loadUSA(data) {
+            const tree = {
+                label: "USA Trips",
+                children: []
+            };
+            data.trips.forEach(trip => {
+
+                const layer = createTripLayer(trip);
+
+                tripLayers[trip.name] = layer;
+                overlays[trip.name] = layer;
+
+                tree.children.push({
+                    label: trip.name,
+                    layer: layer
+                });
+
+                layer.addTo(map); // show by default
+            });
         }
 
         map.on('click', function(e) {

@@ -6,77 +6,88 @@
                     "lat": 18.42229,
                     "lng": -68.96496,
                     "description": "Start of the trip",
-                    "image": "images/paris.jpg"
+                    "image": "images/paris.jpg",
+                    "boat": true
                 },
                 {
                     "title": "St. Marten",
                     "lat": 18.01281,
                     "lng": -63.04530,
                     "description": "Day 3",
-                    "image": "photos/caribbean/stmarten.jpg"
+                    "image": "photos/caribbean/stmarten.jpg",
+                    "boat": true
                 },
                 {
                     "title": "St. Kitts",
                     "lat": 17.29191,
                     "lng": -62.72276,
                     "description": "Day 4",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Guadeloupe",
                     "lat": 16.23824,
                     "lng": -61.53919,
                     "description": "Day 5",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Dominica",
                     "lat": 15.29573,
                     "lng": -61.38844,
                     "description": "Day 6",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "St. Lucia",
                     "lat": 14.01124,
                     "lng": -60.99274,
                     "description": "Day 7",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Barbados",
                     "lat": 13.10319,
                     "lng": -59.63244,
                     "description": "Day 8",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Martinique",
                     "lat": 14.60110,
                     "lng": -61.06053,
                     "description": "Day 9",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Curascao",
                     "lat": 12.10871,
                     "lng": -68.93406,
                     "description": "Day 11",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Aruba",
                     "lat": 12.51791,
                     "lng": -70.04079,
                     "description": "Day 12",
-                    "image": "images/rome.jpg"
+                    "image": "images/rome.jpg",
+                    "boat": true
                 },
                 {
                     "title": "La Romana",
                     "lat": 18.42229,
                     "lng": -68.96496,
                     "description": "End of the trip",
-                    "image": "images/paris.jpg"
+                    "image": "images/paris.jpg",
+                    "boat": true
                 }
             ]
         },
@@ -87,42 +98,48 @@
                     "lat": 28.46809,
                     "lng": -16.24264,
                     "description": "Start of the trip",
-                    "image": "images/paris.jpg"
+                    "image": "images/paris.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Fuerteventura",
                     "lat": 28.49396,
                     "lng": -13.85545,
                     "description": "Day 2",
-                    "image": "photos/canary/fuerteventura.jpg"
+                    "image": "photos/canary/fuerteventura.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Lanzarote",
                     "lat": 28.96610,
                     "lng": -13.53330,
                     "description": "Day 3",
-                    "image": "photos/canary/lanzarote.jpg"
+                    "image": "photos/canary/lanzarote.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Gran Canaria",
                     "lat": 28.14020,
                     "lng": -15.42434,
                     "description": "Day 4",
-                    "image": "photos/canary/granca.jpg"
+                    "image": "photos/canary/granca.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Madeira",
                     "lat": 32.64204,
                     "lng": -16.90942,
                     "description": "Day 6",
-                    "image": "photos/canary/madeira.jpg"
+                    "image": "photos/canary/madeira.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Tenerife",
                     "lat": 28.46809,
                     "lng": -16.24264,
                     "description": "Start of the trip",
-                    "image": "images/paris.jpg"
+                    "image": "images/paris.jpg",
+                    "boat": true
                 }
             ]
         },
@@ -133,42 +150,48 @@
                     "lat": 39.54962,
                     "lng": 2.63809,
                     "description": "Start of the trip",
-                    "image": "photos/mediterranean/palma.jpg"
+                    "image": "photos/mediterranean/palma.jpg",
+                    "boat": true
                 },
                 {
                     "title": "La Spezia",
                     "lat": 44.10425,
                     "lng": 9.83313,
                     "description": "Day 2",
-                    "image": "photos/mediterranean/pisa.jpg"
+                    "image": "photos/mediterranean/pisa.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Civitavecchia",
                     "lat": 42.09787,
                     "lng": 11.77466,
                     "description": "Day 3",
-                    "image": "photos/mediterranean/roma.jpg"
+                    "image": "photos/mediterranean/roma.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Ajaccio",
                     "lat": 41.92051,
                     "lng": 8.74272,
                     "description": "Day 4",
-                    "image": "photos/mediterranean/korsika.jpg"
+                    "image": "photos/mediterranean/korsika.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Barcelona",
                     "lat": 41.32794,
                     "lng": 2.16997,
                     "description": "Day 6",
-                    "image": "photos/mediterranean/barcelona.jpg"
+                    "image": "photos/mediterranean/barcelona.jpg",
+                    "boat": true
                 },
                 {
                     "title": "Mallorca",
                     "lat": 39.54962,
                     "lng": 2.63809,
                     "description": "End of the trip",
-                    "image": "photos/mediterranean/palma.jpg"
+                    "image": "photos/mediterranean/palma.jpg",
+                    "boat": true
                 }
             ]
         }
