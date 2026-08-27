@@ -111,6 +111,7 @@
 
         let tripData;
         let airportData;
+        let stadiumData;
         async function init() {
             const res = await fetch('moretrips.json');
             tripData = await res.json();
@@ -121,11 +122,19 @@
             airportData = await airportRes.json();
             const airportLayer = loadAirports(airportData);
 
+            const stadiumRes = await fetch('resources/stadiums.json');
+            stadiumData = await stadiumRes.json();
+            const stadiumLayer = loadStadiums(stadiumData);
+
             const tree = {
                 label: "Others",
                 children: [{
                     label: "Airports",
                     layer: airportLayer
+                },
+                {
+                    label: "Stadiums",
+                    layer: stadiumLayer
                 }]
             };
             tripLayers.push(tree);
@@ -269,6 +278,27 @@
 
             tripLayers["Airports"] = layer;
             overlays["Airports"] = layer;
+            layer.addTo(map);
+
+            return layer;
+        }
+
+        // Stadiums
+
+        function loadStadiums(data) {
+            const layer = L.layerGroup();
+            data.stadiums.forEach(stadium => {
+                const marker = L.marker([stadium.lat, stadium.lng])
+                    .bindPopup(`
+                <b>${stadium.code}</b><br>
+                ${stadium.name}<br>
+            `);
+
+                marker.addTo(layer);
+            });
+
+            tripLayers["Stadiums"] = layer;
+            overlays["Stadiums"] = layer;
             layer.addTo(map);
 
             return layer;
