@@ -1,0 +1,304 @@
+{
+  "stadiums": [
+    {
+      "lng": 5.266632999999956,
+      "lat": 60.34106889999999,
+      "name": "Varden Kunstgress",
+      "description": ""
+    },
+    {
+      "lng": 5.3138638000000356,
+      "lat": 60.4702394,
+      "name": "Seahawksbanen",
+      "description": ""
+    },
+    {
+      "lng": 5.3340259,
+      "lat": 60.4620856,
+      "name": "Rollandsbanen",
+      "description": "Kvartfinale mot Lura Bulls 2016"
+    },
+    {
+      "lng": 5.22411539999996,
+      "lat": 60.5233704,
+      "name": "Meland Aktiv",
+      "description": ""
+    },
+    {
+      "lng": 5.448339,
+      "lat": 60.1952545,
+      "name": "Kuventræ",
+      "description": ""
+    },
+    {
+      "lng": 5.276581,
+      "lat": 59.4250688,
+      "name": "Haugesund",
+      "description": ""
+    },
+    {
+      "lng": 5.4791415,
+      "lat": 59.322766,
+      "name": "Tysvær",
+      "description": ""
+    },
+    {
+      "lng": 5.6519133,
+      "lat": 58.9482733,
+      "name": "AFC Show",
+      "description": ""
+    },
+    {
+      "lng": 5.7365209,
+      "lat": 58.8824577,
+      "name": "Lura Stadion",
+      "description": ""
+    },
+    {
+      "lng": 7.9487398,
+      "lat": 58.1299763,
+      "name": "Karuss",
+      "description": ""
+    },
+    {
+      "lng": 7.8105068,
+      "lat": 58.0996938,
+      "name": "Søgne",
+      "description": ""
+    },
+    {
+      "lng": 8.021684800000003,
+      "lat": 58.1476601,
+      "name": "Kristiansand stadion",
+      "description": ""
+    },
+    {
+      "lng": 10.4720038,
+      "lat": 59.2698227,
+      "name": "Løveid kunstgress",
+      "description": ""
+    },
+    {
+      "lng": 10.4165035,
+      "lat": 59.2840849,
+      "name": "Tønsberg kunstgress",
+      "description": ""
+    },
+    {
+      "lng": 11.1903155,
+      "lat": 59.2165141,
+      "name": "Skjeberg",
+      "description": ""
+    },
+    {
+      "lng": 10.7846743,
+      "lat": 59.9099862,
+      "name": "Jordal",
+      "description": ""
+    },
+    {
+      "lng": 10.709679800000004,
+      "lat": 59.92712479999999,
+      "name": "Frogner stadion",
+      "description": ""
+    },
+    {
+      "lng": 10.7546228,
+      "lat": 59.9426799,
+      "name": "Voldsløkka",
+      "description": ""
+    },
+    {
+      "lng": 11.0719523,
+      "lat": 59.9578088,
+      "name": "Lillestrøm",
+      "description": ""
+    },
+    {
+      "lng": 11.1947572,
+      "lat": 60.2968825,
+      "name": "Bøn",
+      "description": ""
+    },
+    {
+      "lng": 11.0301876,
+      "lat": 60.8072317,
+      "name": "Prestrud",
+      "description": ""
+    },
+    {
+      "lng": 10.345821399999977,
+      "lat": 63.37600519999999,
+      "name": "Flatåsen Kunstgress",
+      "description": ""
+    },
+    {
+      "lng": 10.406680100000017,
+      "lat": 63.4188291,
+      "name": "Dødens dal",
+      "description": ""
+    },
+    {
+      "lng": 10.449439799999936,
+      "lat": 63.4462045,
+      "name": "Lade idrettsanlegg",
+      "description": ""
+    },
+    {
+      "lng": 10.4488671,
+      "lat": 63.444898,
+      "name": "Gamle Ladebanen",
+      "description": ""
+    },
+    {
+      "lng": 30.40625,
+      "lat": 59.732674,
+      "name": "СПб ГБУ ЦФКСЗ \"Царское Село\" Пушкинского района",
+      "description": ""
+    },
+    {
+      "lng": 10.0196385,
+      "lat": 57.0419906,
+      "name": "Ålborg 89ers",
+      "description": ""
+    },
+    {
+      "lng": 12.0639431,
+      "lat": 55.6196968,
+      "name": "Roskilde",
+      "description": ""
+    },
+    {
+      "lng": -122.3316393,
+      "lat": 47.5951518,
+      "name": "CenturyLink Field",
+      "description": ""
+    },
+    {
+      "lng": -122.6271576,
+      "lat": 46.9507511,
+      "name": "Yelm",
+      "description": ""
+    },
+    {
+      "lng": -122.9149505,
+      "lat": 46.987943,
+      "name": "Tumwater",
+      "description": ""
+    },
+    {
+      "lng": -122.9860854,
+      "lat": 46.7244106,
+      "name": "Centralia",
+      "description": "7th OT"
+    },
+    {
+      "lng": -122.9476708,
+      "lat": 46.6484566,
+      "name": "Chehalis",
+      "description": ""
+    },
+    {
+      "lng": -122.8899014,
+      "lat": 46.1419054,
+      "name": "Kelso",
+      "description": ""
+    },
+    {
+      "lng": 7.0470884,
+      "lat": 51.475202,
+      "name": "Stadion am Hallo",
+      "description": ""
+    },
+    {
+      "lng": 7.173567300000059,
+      "lat": 50.6689824,
+      "name": "Sportpark Pennenfeld",
+      "description": ""
+    },
+    {
+      "lng": 7.149390000000039,
+      "lat": 51.16632000000001,
+      "name": "Stadion Reinshagen",
+      "description": ""
+    },
+    {
+      "lng": 7.017470000000003,
+      "lat": 51.53134,
+      "name": "AFC Gelsenkirchen Devils e. V.",
+      "description": ""
+    },
+    {
+      "lng": 8.562756799999988,
+      "lat": 52.020671,
+      "name": "Stadion Rußheide",
+      "description": ""
+    },
+    {
+      "lng": 6.8776526,
+      "lat": 50.9335139,
+      "name": "Cologne Falcons",
+      "description": ""
+    },
+    {
+      "lng": 7.185359999999946,
+      "lat": 50.82216,
+      "name": "Aggerstadion Troisdorf",
+      "description": ""
+    },
+    {
+      "lng": 7.006638,
+      "lat": 51.4818815,
+      "name": "Bäuminghausstrasse",
+      "description": ""
+    },
+    {
+      "lng": 7.1859671,
+      "lat": 51.284426,
+      "name": "Hatzfeld",
+      "description": ""
+    },
+    {
+      "lng": 6.1050351,
+      "lat": 50.7625662,
+      "name": "Aachen",
+      "description": ""
+    },
+    {
+      "lng": 10.6814026,
+      "lat": 53.8583007,
+      "name": "Buniamshof",
+      "description": ""
+    },
+    {
+      "lng": 10.0543046,
+      "lat": 53.5587325,
+      "name": "Hammer Park Stadion",
+      "description": ""
+    },
+    {
+      "lng": 6.94761,
+      "lat": 51.116576,
+      "name": "Jahnstadion Langenfeld",
+      "description": ""
+    },
+    {
+      "lng": 6.8681649,
+      "lat": 51.1691439,
+      "name": "Düsseldorf",
+      "description": ""
+    },
+    {
+      "lng": 7.036839899999999,
+      "lat": 51.1851131,
+      "name": "Jahnkampfbahn",
+      "description": ""
+    },
+    {
+      "lng": 8.6999271,
+      "lat": 51.756734,
+      "name": "Hermann-Löns-Stadion",
+      "description": ""
+    }
+  ]
+}
