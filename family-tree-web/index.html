@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Family Tree</title><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <div><h1>Family Tree</h1><small id="stats">Loading…</small></div>
+  <div class="search"><input id="search" placeholder="Search people…"><button id="clear">×</button></div>
+  <div class="tools"><button id="zin">+</button><button id="zout">−</button><button id="fit">Fit</button><button id="reset">Reset</button></div>
+</header>
+<main>
+  <div id="cy"></div>
+  <aside id="details" class="hidden"><button id="close">×</button><div id="detailsContent"></div></aside>
+  <div id="results" class="results hidden"></div>
+  <div class="help">Drag to pan · Wheel to zoom · Click a person</div>
+</main>
+<script src="https://unpkg.com/cytoscape@3.31.2/dist/cytoscape.min.js"></script>
+<script src="app.js"></script>
+</body></html>

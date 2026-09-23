@@ -1,0 +1,100 @@
+{
+  "people": [
+    {
+      "id": "P1",
+      "name": "Johann Müller",
+      "birth": "1880",
+      "death": "1955",
+      "gender": "M"
+    },
+    {
+      "id": "P2",
+      "name": "Anna Schmidt",
+      "birth": "1884",
+      "death": "1960",
+      "gender": "F"
+    },
+    {
+      "id": "P3",
+      "name": "Karl Müller",
+      "birth": "1908",
+      "death": "1981",
+      "gender": "M"
+    },
+    {
+      "id": "P4",
+      "name": "Maria Müller",
+      "birth": "1911",
+      "death": "1992",
+      "gender": "F"
+    },
+    {
+      "id": "P5",
+      "name": "Elisabeth Fischer",
+      "birth": "1912",
+      "death": "1990",
+      "gender": "F"
+    },
+    {
+      "id": "P6",
+      "name": "Peter Müller",
+      "birth": "1938",
+      "death": "2015",
+      "gender": "M"
+    },
+    {
+      "id": "P7",
+      "name": "Anna Weber",
+      "birth": "1940",
+      "death": "2018",
+      "gender": "F"
+    },
+    {
+      "id": "P8",
+      "name": "Michael Müller",
+      "birth": "1965",
+      "gender": "M"
+    },
+    {
+      "id": "P9",
+      "name": "Julia Müller",
+      "birth": "1968",
+      "gender": "F"
+    },
+    {
+      "id": "P10",
+      "name": "Thomas Müller",
+      "birth": "1970",
+      "gender": "M"
+    }
+  ],
+  "families": [
+    {
+      "id": "F1",
+      "father": "P1",
+      "mother": "P2",
+      "children": [
+        "P3",
+        "P4"
+      ]
+    },
+    {
+      "id": "F2",
+      "father": "P3",
+      "mother": "P5",
+      "children": [
+        "P6"
+      ]
+    },
+    {
+      "id": "F3",
+      "father": "P6",
+      "mother": "P7",
+      "children": [
+        "P8",
+        "P9",
+        "P10"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+    "trips": [{
+        "name": "2018",
+        "stops": [{
+                "title": "Sea-Tac",
+                "lat": 47.46120,
+                "lng": -122.29325,
+                "description": "Start of the trip",
+                "image": "",
+                "boat": false
+            },
+            {
+                "title": "Acharavi",
+                "lat": 46.98924,
+                "lng": -122.91531,
+                "description": "Day 3",
+                "image": "",
+                "boat": false
+            },
+            {
+                "title": "Mt. St. Helens",
+                "lat": 46.27672,
+                "lng": -122.21655,
+                "description": "Day 4",
+                "image": "",
+                "boat": false
+            },
+            {
+                "title": "Vancouver",
+                "lat": 45.65915,
+                "lng": -122.57489,
+                "description": "Day 5",
+                "image": "",
+                "boat": false
+            },
+            {
+                "title": "Portland Rose Garden",
+                "lat": 45.51909,
+                "lng": -122.70614,
+                "description": "Day 6",
+                "image": "",
+                "boat": false
+            }
+        ]
+    }]
+}
