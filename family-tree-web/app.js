@@ -90,77 +90,108 @@ function findDefaultRoot() {
  * are descendants. Spouses are always pulled into the same generation.
  */
 function buildVisibleTree(focusId) {
-    const generation = new Map([
-        [focusId, 0]
-    ]);
-    const queue = [focusId];
+  const generation = new Map([[focusId, 0]]);
+  const queue = [focusId];
 
-    while (queue.length) {
-        const id = queue.shift();
-        const g = generation.get(id);
+  while (queue.length) {
+    const id = queue.shift();
+    const g = generation.get(id);
 
-        // Parents are one generation above.
-        for (const parent of parentsOf(id)) {
-            if (Math.abs(g - 1) <= S.generationSpan && !generation.has(parent)) {
-                generation.set(parent, g - 1);
-                queue.push(parent);
-            }
-        }
-
-        // Children are one generation below.
-        for (const child of childrenOf(id)) {
-            if (Math.abs(g + 1) <= S.generationSpan && !generation.has(child)) {
-                generation.set(child, g + 1);
-                queue.push(child);
-            }
-        }
-
-        // Partners stay on exactly the same level.
-        for (const partner of partnersOf(id)) {
-            if (Math.abs(g) <= S.generationSpan && !generation.has(partner)) {
-                generation.set(partner, g);
-                queue.push(partner);
-            }
-        }
+    // Parents are one generation above.
+    for (const parent of parentsOf(id)) {
+      if (Math.abs(g - 1) <= S.generationSpan && !generation.has(parent)) {
+        generation.set(parent, g - 1);
+        queue.push(parent);
+      }
     }
 
-    // A partner may reveal children whose other parent was already discovered.
-    // Run a few stabilization passes so a marriage never leaves one partner out.
-    for (let pass = 0; pass < 3; pass++) {
-        for (const [id, g] of[...generation]) {
-            for (const partner of partnersOf(id)) {
-                if (!generation.has(partner)) generation.set(partner, g);
-            }
-            for (const child of childrenOf(id)) {
-                if (!generation.has(child) && Math.abs(g + 1) <= S.generationSpan) {
-                    generation.set(child, g + 1);
-                }
-            }
-            for (const parent of parentsOf(id)) {
-                if (!generation.has(parent) && Math.abs(g - 1) <= S.generationSpan) {
-                    generation.set(parent, g - 1);
-                }
-            }
-        }
+    // Children are one generation below.
+    for (const child of childrenOf(id)) {
+      if (Math.abs(g + 1) <= S.generationSpan && !generation.has(child)) {
+        generation.set(child, g + 1);
+        queue.push(child);
+      }
     }
 
-    const people = [...generation.keys()];
-    const visible = new Set(people);
+    // Partners stay on the same generation.
+    for (const partner of partnersOf(id)) {
+      if (Math.abs(g) <= S.generationSpan && !generation.has(partner)) {
+        generation.set(partner, g);
+        queue.push(partner);
+      }
+    }
+  }
 
-    const families = [...S.families.values()].filter(f => {
-        const ps = familyParents(f).filter(id => visible.has(id));
-        const cs = familyChildren(f).filter(id => visible.has(id));
+  /*
+   * Stabilize the visible tree.
+   *
+   * This is important when a person is:
+   *   - the child of one family
+   *   - the parent of another family
+   *   - the partner of someone else
+   *
+   * We don't want one pass to leave a connected person out.
+   */
+  for (let pass = 0; pass < 3; pass++) {
+    for (const [id, g] of [...generation]) {
 
-        // Keep:
-        // 1. normal parent -> child families
-        // 2. couples, even when they have no children
-        return (
-            (ps.length > 0 && cs.length > 0) ||
-            ps.length >= 2
-        );
-    });
+      for (const partner of partnersOf(id)) {
+        if (!generation.has(partner)) {
+          generation.set(partner, g);
+        }
+      }
 
-    return { generation, people, families };
+      for (const child of childrenOf(id)) {
+        if (
+          !generation.has(child) &&
+          Math.abs(g + 1) <= S.generationSpan
+        ) {
+          generation.set(child, g + 1);
+        }
+      }
+
+      for (const parent of parentsOf(id)) {
+        if (
+          !generation.has(parent) &&
+          Math.abs(g - 1) <= S.generationSpan
+        ) {
+          generation.set(parent, g - 1);
+        }
+      }
+    }
+  }
+
+  const people = [...generation.keys()];
+  const visible = new Set(people);
+
+  /*
+   * IMPORTANT:
+   *
+   * Include a family when:
+   *
+   *   1. it has visible parents AND visible children
+   *
+   * OR
+   *
+   *   2. it has at least two visible parents
+   *
+   * The second case keeps childless couples in the layout.
+   */
+  const families = [...S.families.values()].filter(f => {
+    const ps = familyParents(f).filter(id => visible.has(id));
+    const cs = familyChildren(f).filter(id => visible.has(id));
+
+    return (
+      (ps.length > 0 && cs.length > 0) ||
+      ps.length >= 2
+    );
+  });
+
+  return {
+    generation,
+    people,
+    families,
+  };
 }
 
 /*
@@ -170,490 +201,945 @@ function buildVisibleTree(focusId) {
  * partners receive adjacent slots, and their children are placed underneath
  * the midpoint of that couple. This produces a recognisable genealogy shape.
  */
+/*
+ * FAMILY-BASED LAYOUT
+ *
+ * The important difference from the old layout is that we do NOT:
+ *
+ *   1. place everyone in a generation
+ *   2. move children toward their parents
+ *   3. resolve collisions afterwards
+ *
+ * Instead we build the tree from family blocks.
+ *
+ * Conceptually:
+ *
+ *
+ *          Parent A ── Parent B
+ *                  │
+ *              [ FAMILY ]
+ *             /     |     \
+ *           Child  Child  Child
+ *             │      │
+ *           Spouse  Spouse
+ *             │
+ *          grandchildren
+ *
+ *
+ * Every child's horizontal space includes the space required by that
+ * child's own family branch.
+ *
+ * Therefore siblings remain a group.
+ */
 function calculatePositions(tree) {
-    const { generation, people, families } = tree;
+  const {
+    generation,
+    people,
+    families,
+  } = tree;
 
-    const positions = new Map();
+  const positions = new Map();
 
-    const NODE_WIDTH = 160;
+  /*
+   * Layout constants.
+   *
+   * These describe the visual geometry, not the Cytoscape node style.
+   */
+  const NODE_WIDTH = 160;
+  const SPOUSE_GAP = 18;
+  const SIBLING_GAP = 45;
+  const FAMILY_GAP = 80;
+  const GAP_Y = 145;
 
-    // Horizontal distance between the centres of normal sibling slots.
-    const SIBLING_GAP = 185;
+  const visible = new Set(people);
 
-    // Distance between spouses.
-    const SPOUSE_GAP = 20;
+  /*
+   * ------------------------------------------------------------
+   * 1. Build indexes
+   * ------------------------------------------------------------
+   *
+   * We deliberately keep family-specific relationships.
+   *
+   * We do NOT create a global:
+   *
+   *     person -> partner
+   *
+   * mapping.
+   *
+   * That would break as soon as somebody has more than one family.
+   */
 
-    // Vertical distance between generations.
-    const GENERATION_GAP = 145;
+  const familyInfos = [];
 
-    // ------------------------------------------------------------
-    // Build family information
-    // ------------------------------------------------------------
+  for (const f of families) {
+    const parents = familyParents(f)
+      .filter(id => visible.has(id));
 
-    const visible = new Set(people);
+    const children = familyChildren(f)
+      .filter(id => visible.has(id));
 
-    const familyInfo = families.map(f => ({
-        id: f.id,
-
-        parents: familyParents(f)
-            .filter(id => visible.has(id)),
-
-        children: familyChildren(f)
-            .filter(id => visible.has(id))
-    }));
-
-    // ------------------------------------------------------------
-    // Find the family that contains each child
-    // ------------------------------------------------------------
-
-    const parentFamilyOf = new Map();
-
-    for (const family of familyInfo) {
-        for (const child of family.children) {
-            if (!parentFamilyOf.has(child)) {
-                parentFamilyOf.set(child, family);
-            }
-        }
+    if (!parents.length && !children.length) {
+      continue;
     }
 
-    // ------------------------------------------------------------
-    // Find spouse relationships
-    //
-    // IMPORTANT:
-    // We do NOT create one global "partner map".
-    // A person can have multiple spouses.
-    // ------------------------------------------------------------
+    familyInfos.push({
+      family: f,
+      id: f.id,
+      parents,
+      children,
+    });
+  }
 
-    const spouses = new Map();
+  /*
+   * Families where a person is a child.
+   *
+   * personId -> [family, family, ...]
+   */
+  const parentFamiliesByPerson = new Map();
 
-    function addSpouse(a, b) {
-        if (!a || !b || a === b) return;
+  /*
+   * Families where a person is a parent.
+   *
+   * personId -> [family, family, ...]
+   */
+  const childFamiliesByPerson = new Map();
 
-        if (!spouses.has(a)) {
-            spouses.set(a, new Set());
-        }
+  /*
+   * All families involving a person.
+   *
+   * personId -> [family, family, ...]
+   */
+  const familiesByPerson = new Map();
 
-        spouses.get(a).add(b);
+  function addToMap(map, key, value) {
+    if (!map.has(key)) {
+      map.set(key, []);
     }
 
-    for (const family of familyInfo) {
-        if (family.parents.length < 2) continue;
+    map.get(key).push(value);
+  }
 
-        for (let i = 0; i < family.parents.length; i++) {
-            for (let j = i + 1; j < family.parents.length; j++) {
-                addSpouse(family.parents[i], family.parents[j]);
-                addSpouse(family.parents[j], family.parents[i]);
-            }
-        }
+  for (const info of familyInfos) {
+    for (const parent of info.parents) {
+      addToMap(childFamiliesByPerson, parent, info);
+      addToMap(familiesByPerson, parent, info);
     }
 
-    // ------------------------------------------------------------
-    // Generation levels
-    // ------------------------------------------------------------
+    for (const child of info.children) {
+      addToMap(parentFamiliesByPerson, child, info);
+      addToMap(familiesByPerson, child, info);
+    }
+  }
 
-    const levels = new Map();
+  /*
+   * ------------------------------------------------------------
+   * 2. Family / person width calculation
+   * ------------------------------------------------------------
+   *
+   * Before placing anything we calculate how much horizontal space
+   * every branch needs.
+   *
+   * Example:
+   *
+   *        Henrik ─ Bjørg
+   *             |
+   *       +-----+-----+
+   *       |     |     |
+   *     Child Child Child
+   *
+   * If the middle child is married and has children of their own,
+   * their slot becomes wider.
+   *
+   * This is what prevents the other siblings from being pushed
+   * randomly across the generation.
+   */
 
-    for (const id of people) {
-        const g = generation.get(id);
+  const personWidthMemo = new Map();
+  const familyWidthMemo = new Map();
 
-        if (g == null) continue;
+  const personWidthStack = new Set();
+  const familyWidthStack = new Set();
 
-        if (!levels.has(g)) {
-            levels.set(g, []);
-        }
-
-        levels.get(g).push(id);
+  function parentGroupWidth(parents) {
+    if (!parents.length) {
+      return NODE_WIDTH;
     }
 
-    const sortedGenerations =
-        [...levels.keys()].sort((a, b) => a - b);
+    return (
+      parents.length * NODE_WIDTH +
+      Math.max(0, parents.length - 1) * SPOUSE_GAP
+    );
+  }
 
-    // ------------------------------------------------------------
-    // Determine which people are "child anchors".
-    //
-    // A child anchor is positioned according to the family they
-    // came from. Their spouse is then positioned beside them.
-    // ------------------------------------------------------------
-
-    function spouseList(id) {
-        return [...(spouses.get(id) || [])]
-            .filter(x => visible.has(x));
+  function personSubtreeWidth(personId) {
+    if (personWidthMemo.has(personId)) {
+      return personWidthMemo.get(personId);
     }
 
-    // ------------------------------------------------------------
-    // Step 1:
-    // Create a stable ordering for each generation.
-    //
-    // The key difference from the previous algorithm is that
-    // siblings ONLY come from the same family.children array.
-    // ------------------------------------------------------------
+    /*
+     * Protect against malformed/cyclic family data.
+     */
+    if (personWidthStack.has(personId)) {
+      return NODE_WIDTH;
+    }
 
-    const orderedLevels = new Map();
+    personWidthStack.add(personId);
 
-    for (const g of sortedGenerations) {
+    let width = NODE_WIDTH;
 
-        const ids = [...levels.get(g)];
-        const used = new Set();
-        const ordered = [];
+    const childFamilies =
+      childFamiliesByPerson.get(personId) || [];
 
-        // First place people according to their parent family.
-        //
-        // This means:
-        //
-        // Henrik/Bjørg
-        //       |
-        //   [Kristine, Synnøve, Frank]
-        //
-        // rather than treating everybody at generation g as one
-        // giant sibling group.
+    /*
+     * A person can have multiple families.
+     *
+     * Their branches are placed next to each other.
+     */
+    if (childFamilies.length) {
+      const familyWidths = childFamilies.map(
+        familySubtreeWidth
+      );
 
-        const familiesAtLevel = familyInfo
-            .filter(f =>
-                f.children.some(child =>
-                    ids.includes(child)
-                )
+      const total =
+        familyWidths.reduce((sum, value) => sum + value, 0) +
+        Math.max(0, familyWidths.length - 1) * FAMILY_GAP;
+
+      width = Math.max(width, total);
+    }
+
+    personWidthStack.delete(personId);
+
+    personWidthMemo.set(personId, width);
+
+    return width;
+  }
+
+  function familySubtreeWidth(info) {
+    if (familyWidthMemo.has(info.id)) {
+      return familyWidthMemo.get(info.id);
+    }
+
+    /*
+     * Protect against malformed/cyclic family data.
+     */
+    if (familyWidthStack.has(info.id)) {
+      return parentGroupWidth(info.parents);
+    }
+
+    familyWidthStack.add(info.id);
+
+    /*
+     * Width occupied by the parent couple.
+     */
+    let width = parentGroupWidth(info.parents);
+
+    /*
+     * Width occupied by all children.
+     */
+    if (info.children.length) {
+      const childWidths = info.children.map(
+        personSubtreeWidth
+      );
+
+      const childrenWidth =
+        childWidths.reduce(
+          (sum, value) => sum + value,
+          0
+        ) +
+        Math.max(0, childWidths.length - 1) *
+          SIBLING_GAP;
+
+      width = Math.max(width, childrenWidth);
+    }
+
+    familyWidthStack.delete(info.id);
+
+    familyWidthMemo.set(info.id, width);
+
+    return width;
+  }
+
+  /*
+   * Force all widths to be calculated.
+   */
+  for (const info of familyInfos) {
+    familySubtreeWidth(info);
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * 3. Family generation helper
+   * ------------------------------------------------------------
+   */
+
+  function familyGeneration(info) {
+    const parentGenerations = info.parents
+      .map(id => generation.get(id))
+      .filter(g => g !== undefined);
+
+    if (parentGenerations.length) {
+      return Math.min(...parentGenerations);
+    }
+
+    const childGenerations = info.children
+      .map(id => generation.get(id))
+      .filter(g => g !== undefined);
+
+    if (childGenerations.length) {
+      return Math.min(...childGenerations) - 1;
+    }
+
+    return 0;
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * 4. Placement helpers
+   * ------------------------------------------------------------
+   */
+
+  const placedFamilies = new Set();
+  const placingFamilies = new Set();
+
+  /*
+   * Keep track of where a family couple is centered.
+   */
+  const familyCenters = new Map();
+
+  function personY(personId) {
+    const g = generation.get(personId);
+
+    if (g === undefined) {
+      return 0;
+    }
+
+    return g * GAP_Y;
+  }
+
+  function familyY(info) {
+    return familyGeneration(info) * GAP_Y;
+  }
+
+  /*
+   * Put a set of parents around a center.
+   *
+   * For the normal husband/wife case:
+   *
+   *       parent ---- parent
+   *          ^        ^
+   *       -89px     +89px
+   *
+   * If one parent is already positioned because they are also
+   * a child in another family, we keep that position and put
+   * the spouse beside them.
+   */
+  function placeParents(info, desiredCenterX) {
+    const parents = info.parents;
+
+    if (!parents.length) {
+      return desiredCenterX;
+    }
+
+    const fixed = parents.filter(id => positions.has(id));
+
+    /*
+     * No parent has a position yet.
+     *
+     * Place the whole parent group around desiredCenterX.
+     */
+    if (!fixed.length) {
+      const totalWidth = parentGroupWidth(parents);
+
+      let x =
+        desiredCenterX -
+        totalWidth / 2 +
+        NODE_WIDTH / 2;
+
+      parents.forEach(parent => {
+        positions.set(parent, {
+          x,
+          y: personY(parent),
+        });
+
+        x += NODE_WIDTH + SPOUSE_GAP;
+      });
+
+      return desiredCenterX;
+    }
+
+    /*
+     * All or some parents already have positions.
+     */
+    if (parents.length === 2) {
+      const a = parents[0];
+      const b = parents[1];
+
+      const aPosition = positions.get(a);
+      const bPosition = positions.get(b);
+
+      /*
+       * Both already positioned.
+       *
+       * Never move either one. The family center is simply the
+       * midpoint between them.
+       */
+      if (aPosition && bPosition) {
+        return (aPosition.x + bPosition.x) / 2;
+      }
+
+      /*
+       * One parent already positioned.
+       *
+       * Place the spouse directly beside them.
+       */
+      const fixedParent = aPosition ? a : b;
+      const missingParent = aPosition ? b : a;
+
+      const fixedX = positions.get(fixedParent).x;
+
+      /*
+       * If this person has several spouse families, alternate
+       * the side used by each spouse.
+       *
+       * First spouse  -> right
+       * Second spouse -> left
+       * Third spouse  -> right
+       * ...
+       */
+      const spouseFamilies =
+        childFamiliesByPerson.get(fixedParent) || [];
+
+      const familyIndex = spouseFamilies.indexOf(info);
+
+      const direction =
+        familyIndex >= 0 && familyIndex % 2 === 1
+          ? -1
+          : 1;
+
+      const missingX =
+        fixedX +
+        direction *
+          (NODE_WIDTH + SPOUSE_GAP);
+
+      positions.set(missingParent, {
+        x: missingX,
+        y: personY(missingParent),
+      });
+
+      return (fixedX + missingX) / 2;
+    }
+
+    /*
+     * More than two parents.
+     *
+     * This is uncommon, but we still keep the group together.
+     */
+    const existingX =
+      fixed.reduce(
+        (sum, id) => sum + positions.get(id).x,
+        0
+      ) / fixed.length;
+
+    const missing = parents.filter(
+      id => !positions.has(id)
+    );
+
+    let startX =
+      existingX -
+      ((missing.length - 1) *
+        (NODE_WIDTH + SPOUSE_GAP)) /
+        2;
+
+    for (const parent of missing) {
+      positions.set(parent, {
+        x: startX,
+        y: personY(parent),
+      });
+
+      startX += NODE_WIDTH + SPOUSE_GAP;
+    }
+
+    const xs = parents.map(
+      id => positions.get(id).x
+    );
+
+    return xs.reduce((a, b) => a + b, 0) / xs.length;
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * 5. Place one family
+   * ------------------------------------------------------------
+   *
+   * This is the heart of the algorithm.
+   *
+   * Given:
+   *
+   *       Henrik ---- Bjørg
+   *
+   * we calculate:
+   *
+   *       Henrik ---- Bjørg
+   *             |
+   *       +-----+-----+
+   *       |     |     |
+   *      A      B      C
+   *
+   * And B's own family is then placed directly underneath B.
+   */
+  function placeFamily(info, desiredCenterX) {
+    if (placedFamilies.has(info.id)) {
+      return familyCenters.get(
+        info.id
+      ) ?? desiredCenterX;
+    }
+
+    /*
+     * Prevent recursive cycles.
+     */
+    if (placingFamilies.has(info.id)) {
+      return desiredCenterX;
+    }
+
+    placingFamilies.add(info.id);
+
+    /*
+     * First place the parent couple.
+     */
+    const centerX = placeParents(
+      info,
+      desiredCenterX
+    );
+
+    familyCenters.set(
+      info.id,
+      centerX
+    );
+
+    /*
+     * Mark as placed BEFORE recursively entering child
+     * families. This prevents circular family data from
+     * causing infinite recursion.
+     */
+    placedFamilies.add(info.id);
+
+    /*
+     * ----------------------------------------------------------
+     * Place children as one sibling block.
+     * ----------------------------------------------------------
+     */
+
+    if (info.children.length) {
+      const childWidths =
+        info.children.map(
+          personSubtreeWidth
+        );
+
+      const totalWidth =
+        childWidths.reduce(
+          (sum, value) => sum + value,
+          0
+        ) +
+        Math.max(
+          0,
+          childWidths.length - 1
+        ) *
+          SIBLING_GAP;
+
+      let x =
+        centerX -
+        totalWidth / 2;
+
+      info.children.forEach(
+        (childId, index) => {
+          const width =
+            childWidths[index];
+
+          /*
+           * The child occupies the center of their own
+           * reserved branch.
+           */
+          const desiredChildX =
+            x + width / 2;
+
+          let childX =
+            desiredChildX;
+
+          /*
+           * If this child was already positioned by another
+           * family, don't move them.
+           *
+           * This allows a person to belong to multiple
+           * family records without creating duplicate nodes.
+           */
+          if (positions.has(childId)) {
+            childX =
+              positions.get(childId).x;
+          } else {
+            positions.set(childId, {
+              x: childX,
+              y: personY(childId),
+            });
+          }
+
+          /*
+           * Make sure the generation is always correct.
+           */
+          positions.get(childId).y =
+            personY(childId);
+
+          /*
+           * A person may now become a parent themselves.
+           *
+           * Their own family is centered on the child position.
+           *
+           * Example:
+           *
+           * Henrik ─ Bjørg
+           *       |
+           *     Frank ─ Maike
+           *           |
+           *         child
+           */
+          const childFamilies =
+            childFamiliesByPerson.get(
+              childId
+            ) || [];
+
+          for (const childFamily of childFamilies) {
+            placeFamily(
+              childFamily,
+              childX
             );
+          }
 
-        for (const family of familiesAtLevel) {
-
-            for (const child of family.children) {
-
-                if (!ids.includes(child)) continue;
-                if (used.has(child)) continue;
-
-                ordered.push(child);
-                used.add(child);
-            }
+          x += width + SIBLING_GAP;
         }
-
-        // Add people who weren't children of a visible family.
-        //
-        // This handles spouses, isolated people and other edge
-        // cases without losing them.
-
-        const remaining = ids
-            .filter(id => !used.has(id))
-            .sort((a, b) => {
-                const pa = S.people.get(a);
-                const pb = S.people.get(b);
-
-                return birthYear(pa) - birthYear(pb);
-            });
-
-        ordered.push(...remaining);
-
-        orderedLevels.set(g, ordered);
+      );
     }
 
-    // ------------------------------------------------------------
-    // Step 2:
-    // Give each person an initial position.
-    //
-    // At this point spouses are NOT used to determine the child
-    // order.
-    // ------------------------------------------------------------
+    /*
+     * ----------------------------------------------------------
+     * Make sure parent ancestors are also reached.
+     * ----------------------------------------------------------
+     *
+     * Example:
+     *
+     *        Grandfather ─ Grandmother
+     *                   |
+     *             Henrik ─ Bjørg
+     *                     |
+     *                   Frank
+     *
+     * If Henrik already has an x position because he is a
+     * parent in this family, we can walk back to Henrik's
+     * own parent family without moving Henrik.
+     */
+    for (const parentId of info.parents) {
+      const ancestorFamilies =
+        parentFamiliesByPerson.get(
+          parentId
+        ) || [];
 
-    for (const g of sortedGenerations) {
+      for (const ancestorFamily of ancestorFamilies) {
+        if (!placedFamilies.has(ancestorFamily.id)) {
+          const parentX =
+            positions.get(parentId)?.x ??
+            centerX;
 
-        const ids = orderedLevels.get(g);
+          placeFamily(
+            ancestorFamily,
+            parentX
+          );
+        }
+      }
+    }
 
-        if (!ids.length) continue;
+    placingFamilies.delete(info.id);
 
-        const totalWidth =
-            (ids.length - 1) * SIBLING_GAP;
+    return centerX;
+  }
 
-        const startX =
-            -totalWidth / 2;
+  /*
+   * ------------------------------------------------------------
+   * 6. Find root families
+   * ------------------------------------------------------------
+   *
+   * A root family is one whose parents are not themselves
+   * children of another visible family.
+   */
+  const rootFamilies = familyInfos
+    .filter(info => {
+      return !info.parents.some(
+        parentId =>
+          parentFamiliesByPerson.has(
+            parentId
+          )
+      );
+    })
+    .sort((a, b) => {
+      const ga = familyGeneration(a);
+      const gb = familyGeneration(b);
 
-        ids.forEach((id, index) => {
+      if (ga !== gb) {
+        return ga - gb;
+      }
 
-            positions.set(id, {
-                x: startX + index * SIBLING_GAP,
-                y: g * GENERATION_GAP
-            });
+      const ay =
+        a.parents.length
+          ? Math.min(
+              ...a.parents.map(
+                id =>
+                  birthYear(
+                    S.people.get(id)
+                  )
+              )
+            )
+          : Infinity;
 
+      const by =
+        b.parents.length
+          ? Math.min(
+              ...b.parents.map(
+                id =>
+                  birthYear(
+                    S.people.get(id)
+                  )
+              )
+            )
+          : Infinity;
+
+      return ay - by;
+    });
+
+  /*
+   * ------------------------------------------------------------
+   * 7. Lay out each root family
+   * ------------------------------------------------------------
+   */
+
+  let cursorX = 0;
+
+  for (const info of rootFamilies) {
+    if (placedFamilies.has(info.id)) {
+      continue;
+    }
+
+    const width =
+      familySubtreeWidth(info);
+
+    const center =
+      cursorX + width / 2;
+
+    placeFamily(
+      info,
+      center
+    );
+
+    cursorX +=
+      width + FAMILY_GAP;
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * 8. Handle any remaining families
+   * ------------------------------------------------------------
+   *
+   * Normally everything should already have been reached through
+   * the family graph.
+   *
+   * This is a safety net for unusual / disconnected Gramps data.
+   */
+  for (const info of familyInfos) {
+    if (placedFamilies.has(info.id)) {
+      continue;
+    }
+
+    const width =
+      familySubtreeWidth(info);
+
+    /*
+     * If one of the parents already has a position, use that
+     * position as the anchor.
+     */
+    const existingParent =
+      info.parents.find(
+        id => positions.has(id)
+      );
+
+    const center =
+      existingParent
+        ? positions.get(existingParent).x
+        : cursorX + width / 2;
+
+    placeFamily(
+      info,
+      center
+    );
+
+    if (!existingParent) {
+      cursorX +=
+        width + FAMILY_GAP;
+    }
+  }
+
+  /*
+   * ------------------------------------------------------------
+   * 9. Place people that aren't part of any visible family.
+   * ------------------------------------------------------------
+   *
+   * They shouldn't disappear just because they are isolated.
+   */
+  const unplaced = people.filter(
+    id => !positions.has(id)
+  );
+
+  if (unplaced.length) {
+    const byGeneration =
+      new Map();
+
+    for (const id of unplaced) {
+      const g =
+        generation.get(id) ?? 0;
+
+      if (!byGeneration.has(g)) {
+        byGeneration.set(g, []);
+      }
+
+      byGeneration.get(g).push(id);
+    }
+
+    for (const [g, ids] of byGeneration) {
+      let x = cursorX;
+
+      for (const id of ids) {
+        positions.set(id, {
+          x,
+          y: g * GAP_Y,
         });
+
+        x +=
+          NODE_WIDTH +
+          SIBLING_GAP;
+      }
+
+      cursorX = x + FAMILY_GAP;
     }
+  }
 
-    // ------------------------------------------------------------
-    // Step 3:
-    // Align children with their parents.
-    //
-    // We only move CHILDREN here.
-    //
-    // We deliberately do NOT move their spouses.
-    // Their spouses will be positioned afterwards.
-    // ------------------------------------------------------------
+  /*
+   * ------------------------------------------------------------
+   * 10. Center the complete tree.
+   * ------------------------------------------------------------
+   *
+   * We use the bounding box rather than the average position.
+   * This keeps a large family branch visually centered.
+   */
+  if (positions.size) {
+    const xs = [
+      ...positions.values()
+    ].map(p => p.x);
 
-    for (let pass = 0; pass < 5; pass++) {
+    const minX =
+      Math.min(...xs);
 
-        for (const family of familyInfo) {
+    const maxX =
+      Math.max(...xs);
 
-            if (!family.children.length) continue;
-            if (!family.parents.length) continue;
+    const centerX =
+      (minX + maxX) / 2;
 
-            const parentPositions =
-                family.parents
-                    .filter(id => positions.has(id))
-                    .map(id => positions.get(id));
-
-            if (!parentPositions.length) continue;
-
-            const parentCenter =
-                parentPositions.reduce(
-                    (sum, p) => sum + p.x,
-                    0
-                ) / parentPositions.length;
-
-            const children =
-                family.children
-                    .filter(id => positions.has(id));
-
-            if (!children.length) continue;
-
-            const childCenter =
-                children.reduce(
-                    (sum, id) =>
-                        sum + positions.get(id).x,
-                    0
-                ) / children.length;
-
-            const shift =
-                (parentCenter - childCenter) * 0.65;
-
-            children.forEach(id => {
-                positions.get(id).x += shift;
-            });
-        }
-
-        // Resolve sibling collisions after each pass.
-        resolveGenerationCollisions(
-            orderedLevels,
-            positions,
-            SIBLING_GAP
-        );
+    for (const position of positions.values()) {
+      position.x -= centerX;
     }
+  }
 
-    // ------------------------------------------------------------
-    // Step 4:
-    // Position spouses.
-    //
-    // This happens AFTER the child hierarchy has been established.
-    //
-    // Therefore:
-    //
-    //       Parent
-    //         |
-    //       Frank --- Maike
-    //
-    // instead of allowing Maike to influence Frank's child slot.
-    // ------------------------------------------------------------
-
-    const positionedSpouses = new Set();
-
-    for (const g of sortedGenerations) {
-
-        const ids = orderedLevels.get(g);
-
-        for (const id of ids) {
-
-            if (!positions.has(id)) continue;
-
-            const partners =
-                spouseList(id);
-
-            if (!partners.length) continue;
-
-            const base = positions.get(id);
-
-            const visiblePartners =
-                partners.filter(partner =>
-                    positions.has(partner)
-                );
-
-            if (!visiblePartners.length) continue;
-
-            // Only position partners that are not already handled.
-            for (const partner of visiblePartners) {
-
-                const partnerPos =
-                    positions.get(partner);
-
-                // If the partner is already immediately adjacent,
-                // leave it alone.
-                if (
-                    Math.abs(
-                        partnerPos.x -
-                        base.x
-                    ) <= NODE_WIDTH + SPOUSE_GAP + 5
-                ) {
-                    positionedSpouses.add(partner);
-                    continue;
-                }
-
-                // Put spouse to the right of the person.
-                partnerPos.x =
-                    base.x +
-                    NODE_WIDTH +
-                    SPOUSE_GAP;
-
-                partnerPos.y =
-                    base.y;
-
-                positionedSpouses.add(partner);
-            }
-        }
-    }
-
-    // ------------------------------------------------------------
-    // Step 5:
-    // Resolve collisions again.
-    //
-    // Spouses are treated as part of the same local couple block,
-    // but we do NOT allow them to influence sibling relationships.
-    // ------------------------------------------------------------
-
-    for (const g of sortedGenerations) {
-
-        const ids = orderedLevels.get(g);
-
-        if (!ids.length) continue;
-
-        const blocks = [];
-
-        const processed = new Set();
-
-        for (const id of ids) {
-
-            if (processed.has(id)) continue;
-
-            const p = positions.get(id);
-            if (!p) continue;
-
-            const partners =
-                spouseList(id)
-                    .filter(x => positions.has(x));
-
-            const members = [id];
-
-            for (const partner of partners) {
-
-                if (!members.includes(partner)) {
-                    members.push(partner);
-                }
-            }
-
-            members.forEach(x => processed.add(x));
-
-            const xs =
-                members.map(x => positions.get(x).x);
-
-            blocks.push({
-                members,
-                left: Math.min(...xs),
-                right: Math.max(...xs),
-                center:
-                    xs.reduce((a, b) => a + b, 0) /
-                    xs.length
-            });
-        }
-
-        blocks.sort((a, b) =>
-            a.center - b.center
-        );
-
-        for (let i = 1; i < blocks.length; i++) {
-
-            const previous = blocks[i - 1];
-            const current = blocks[i];
-
-            const required =
-                previous.right +
-                SIBLING_GAP -
-                current.left;
-
-            if (required <= 0) continue;
-
-            current.members.forEach(id => {
-                positions.get(id).x += required;
-            });
-
-            current.left += required;
-            current.right += required;
-            current.center += required;
-        }
-    }
-
-    // ------------------------------------------------------------
-    // Step 6:
-    // Re-center each generation.
-    // ------------------------------------------------------------
-
-    for (const g of sortedGenerations) {
-
-        const ids =
-            [...levels.get(g)]
-                .filter(id => positions.has(id));
-
-        if (!ids.length) continue;
-
-        const xs =
-            ids.map(id => positions.get(id).x);
-
-        const center =
-            xs.reduce((a, b) => a + b, 0) /
-            xs.length;
-
-        ids.forEach(id => {
-            positions.get(id).x -= center;
-        });
-    }
-
-    return positions;
+  return positions;
 }
 
 
 // ------------------------------------------------------------
-// Keep people in a generation from overlapping.
+// Keep sibling blocks separate
 //
-// This function only moves people horizontally.
+// This function moves complete blocks, never individual children.
 // ------------------------------------------------------------
 
-function resolveGenerationCollisions(
-    orderedLevels,
+function resolveBlockCollisions(
+    blocks,
     positions,
-    minimumGap
+    minimumGap,
+    familyGap
 ) {
-    for (const ids of orderedLevels.values()) {
-
-        const ordered =
-            ids
+    const geometry = blocks
+        .map(block => {
+            const xs = block.members
                 .filter(id => positions.has(id))
-                .slice()
-                .sort(
-                    (a, b) =>
-                        positions.get(a).x -
-                        positions.get(b).x
-                );
+                .map(id => positions.get(id).x);
 
-        for (let i = 1; i < ordered.length; i++) {
+            if (!xs.length) return null;
 
-            const previous =
-                positions.get(ordered[i - 1]);
+            return {
+                block,
 
-            const current =
-                positions.get(ordered[i]);
+                left:
+                    Math.min(...xs) - 80,
 
-            const required =
-                previous.x +
-                minimumGap -
-                current.x;
+                right:
+                    Math.max(...xs) + 80,
 
-            if (required > 0) {
-                current.x += required;
+                center:
+                    xs.reduce((a, b) => a + b, 0) /
+                    xs.length
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.center - b.center);
+
+    for (let i = 1; i < geometry.length; i++) {
+        const previous = geometry[i - 1];
+        const current = geometry[i];
+
+        const required =
+            previous.right +
+            familyGap -
+            current.left;
+
+        if (required <= 0) continue;
+
+        for (const id of current.block.members) {
+            if (positions.has(id)) {
+                positions.get(id).x += required;
             }
         }
+
+        current.left += required;
+        current.right += required;
+        current.center += required;
     }
+}
+
+
+// ------------------------------------------------------------
+// Center a generation while preserving sibling blocks
+// ------------------------------------------------------------
+
+function centerGenerationBlocks(blocks, positions) {
+    const ids = blocks
+        .flatMap(block => block.members)
+        .filter(id => positions.has(id));
+
+    if (!ids.length) return;
+
+    const center =
+        ids.reduce(
+            (sum, id) =>
+                sum + positions.get(id).x,
+            0
+        ) / ids.length;
+
+    ids.forEach(id => {
+        positions.get(id).x -= center;
+    });
 }
 
 
