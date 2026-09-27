@@ -1,0 +1,12 @@
+[
+  {
+    "id": "Kolden",
+    "name": "Familien Kolden",
+    "file": "data/kolden.json"
+  },
+  {
+    "id": "Vetås",
+    "name": "Familien Vetås",
+    "file": "data/vetas.json"
+  }
+]

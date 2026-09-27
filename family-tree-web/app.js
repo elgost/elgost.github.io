@@ -20,6 +20,9 @@ const S = {
   cy: null,
   focusId: null,
   generationSpan: 3,
+  showAll: false,
+  treeCatalog: [],
+  currentTree: null,
 };
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
@@ -95,21 +98,21 @@ function buildVisibleTree(focusId) {
 
     // A family with only one known parent is perfectly valid here.
     for (const parent of parentsOf(id)) {
-      if (Math.abs(g - 1) <= S.generationSpan && !generation.has(parent)) {
+      if ((S.showAll || Math.abs(g - 1) <= S.generationSpan) && !generation.has(parent)) {
         generation.set(parent, g - 1);
         queue.push(parent);
       }
     }
 
     for (const child of childrenOf(id)) {
-      if (Math.abs(g + 1) <= S.generationSpan && !generation.has(child)) {
+      if ((S.showAll || Math.abs(g + 1) <= S.generationSpan) && !generation.has(child)) {
         generation.set(child, g + 1);
         queue.push(child);
       }
     }
 
     for (const partner of partnersOf(id)) {
-      if (Math.abs(g) <= S.generationSpan && !generation.has(partner)) {
+      if ((S.showAll || Math.abs(g) <= S.generationSpan) && !generation.has(partner)) {
         generation.set(partner, g);
         queue.push(partner);
       }
@@ -121,22 +124,30 @@ function buildVisibleTree(focusId) {
   for (let pass = 0; pass < 4; pass++) {
     for (const [id, g] of [...generation]) {
       for (const partner of partnersOf(id)) {
-        if (!generation.has(partner) && Math.abs(g) <= S.generationSpan) {
+        if (!generation.has(partner) && (S.showAll || Math.abs(g) <= S.generationSpan)) {
           generation.set(partner, g);
         }
       }
 
       for (const child of childrenOf(id)) {
-        if (!generation.has(child) && Math.abs(g + 1) <= S.generationSpan) {
+        if (!generation.has(child) && (S.showAll || Math.abs(g + 1) <= S.generationSpan)) {
           generation.set(child, g + 1);
         }
       }
 
       for (const parent of parentsOf(id)) {
-        if (!generation.has(parent) && Math.abs(g - 1) <= S.generationSpan) {
+        if (!generation.has(parent) && (S.showAll || Math.abs(g - 1) <= S.generationSpan)) {
           generation.set(parent, g - 1);
         }
       }
+    }
+  }
+
+  // In Show All mode, include every record in the selected JSON.
+  // Normally the view is intentionally focused around one person.
+  if (S.showAll) {
+    for (const id of S.people.keys()) {
+      if (!generation.has(id)) generation.set(id, 0);
     }
   }
 
@@ -241,6 +252,7 @@ function calculatePositions(tree) {
     return parents.length * NODE_WIDTH +
       Math.max(0, parents.length - 1) * SPOUSE_GAP;
   }
+
   function familyWidth(f) {
     if (familyWidthMemo.has(f.id)) return familyWidthMemo.get(f.id);
     if (familyStack.has(f.id)) return coupleWidth(f.parents);
@@ -484,8 +496,8 @@ function calculatePositions(tree) {
     })[0];
   }
 
-  // Put components next to each other. Connected family components are laid 
-    // out as units, so two unrelated branches cannot push individual siblings
+  // Put components next to each other. Connected family components are laid
+  // out as units, so two unrelated branches cannot push individual siblings
   // apart after the fact.
   let componentCursor = 0;
 
@@ -728,8 +740,8 @@ function makeElements(tree, positions) {
         elements.push({
           data: {
             id: `partner-${pairKey}-${i}-${j}`,
-            source: ps[i], 
-                        target: ps[j],
+            source: ps[i],
+            target: ps[j],
             type: "partner-edge",
           },
         });
@@ -830,8 +842,10 @@ function renderTree(focusId, fit = true) {
 
 function updateStats(tree) {
   const generations = new Set(tree.people.map(id => tree.generation.get(id))).size;
+  const treeName = S.currentTree?.name ? ` · ${S.currentTree.name}` : "";
+  const mode = S.showAll ? " · all generations" : "";
   document.getElementById("stats").textContent =
-    `${S.people.size} people · ${S.families.size} families · showing ${tree.people.length} people · ${generations} generations`;
+    `${S.people.size} people · ${S.families.size} families · showing ${tree.people.length} people · ${generations} generations${mode}${treeName}`;
 }
 
 function focusPerson(id) {
@@ -935,19 +949,99 @@ function search(q) {
   });
 }
 
-async function start() {
-  const response = await fetch("data/family-tree.json");
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+async function loadTree(treeConfig) {
+  const response = await fetch(treeConfig.file);
+  if (!response.ok) throw new Error(`HTTP ${response.status} while loading ${treeConfig.file}`);
   const data = await response.json();
+
+  if (!Array.isArray(data.people) || !Array.isArray(data.families)) {
+    throw new Error(`${treeConfig.file} is not a valid family-tree JSON file`);
+  }
+
+  if (S.cy) {
+    S.cy.destroy();
+    S.cy = null;
+  }
+
+  S.people.clear();
+  S.families.clear();
+  S.focusId = null;
+  S.showAll = false;
+  S.currentTree = treeConfig;
 
   data.people.forEach(p => S.people.set(p.id, p));
   data.families.forEach(f => S.families.set(f.id, f));
+
+  const select = document.getElementById("treeSelect");
+  if (select) select.value = treeConfig.id;
+
+  const showAllButton = document.getElementById("showAll");
+  if (showAllButton) {
+    showAllButton.classList.remove("active");
+    showAllButton.textContent = "Show all";
+  }
+
+  const root = findDefaultRoot();
+  if (!root) throw new Error(`No people found in ${treeConfig.file}`);
+
+  renderTree(root, true);
+}
+
+async function start() {
+  const catalogResponse = await fetch("data/trees.json");
+  if (!catalogResponse.ok) throw new Error(`HTTP ${catalogResponse.status} while loading data/trees.json`);
+
+  const catalog = await catalogResponse.json();
+  if (!Array.isArray(catalog) || !catalog.length) {
+    throw new Error("data/trees.json must contain at least one tree");
+  }
+
+  S.treeCatalog = catalog;
+
+  const select = document.getElementById("treeSelect");
+  if (!select) throw new Error("Missing #treeSelect in index.html");
+
+  select.innerHTML = "";
+  catalog.forEach(tree => {
+    const option = document.createElement("option");
+    option.value = tree.id;
+    option.textContent = tree.name;
+    select.appendChild(option);
+  });
+
+  select.onchange = async () => {
+    const tree = S.treeCatalog.find(t => t.id === select.value);
+    if (!tree) return;
+
+    try {
+      await loadTree(tree);
+    } catch (e) {
+      console.error(e);
+      document.getElementById("stats").textContent = "Error loading selected tree";
+    }
+  };
+
+  document.getElementById("showAll").onclick = () => {
+    if (!S.people.size) return;
+
+    S.showAll = !S.showAll;
+    const button = document.getElementById("showAll");
+    button.classList.toggle("active", S.showAll);
+    button.textContent = S.showAll ? "Focused view" : "Show all";
+
+    const root = S.focusId || findDefaultRoot();
+    if (root) renderTree(root, true);
+  };
 
   document.getElementById("fit").onclick = () => {
     if (S.cy) S.cy.fit(S.cy.nodes('[type="person"]'), 70);
   };
 
   document.getElementById("reset").onclick = () => {
+    S.showAll = false;
+    const button = document.getElementById("showAll");
+    button.classList.remove("active");
+    button.textContent = "Show all";
     const root = findDefaultRoot();
     if (root) renderTree(root, true);
   };
@@ -961,12 +1055,8 @@ async function start() {
   };
   document.getElementById("search").oninput = e => search(e.target.value.trim());
 
-  const root = findDefaultRoot();
-  if (!root) throw new Error("No people found in family-tree.json");
-
-  renderTree(root, true);
+  await loadTree(catalog[0]);
 }
-
 start().catch(e => {
   console.error(e);
   document.getElementById("stats").textContent = "Error loading data";
