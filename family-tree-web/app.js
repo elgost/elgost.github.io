@@ -605,35 +605,255 @@ function calculatePositions(tree) {
   }
 
   // ------------------------------------------------------------
-  // 8. Collision resolution — sibling/family blocks, NOT individual people
-  // ------------------------------------------------------------
-  //
-  // This is intentionally much less aggressive than the old generation-level
-  // collision resolver. Spouses and siblings must move as groups.
+    // 8. Collision resolution — family blocks
+    // ------------------------------------------------------------
+    //
+    // IMPORTANT:
+    // People are not independent nodes.
+    //
+    // A normal family:
+    //
+    //     Sven ─ Ragna
+    //          |
+    //         Orm
+    //
+    // must remain a single horizontal block on the parent generation.
+    //
+    // The old collision resolver could move people independently and therefore
+    // allow another person to end up between Sven and Ragna.
+    //
+    // We therefore resolve collisions between FAMILY BLOCKS, not people.
+    //
 
-  const generations = new Map();
+    const generations = new Map();
 
-  for (const id of people) {
+    for (const id of people) {
     if (!positions.has(id)) continue;
+
     const g = generation.get(id) ?? 0;
-    if (!generations.has(g)) generations.set(g, []);
-    generations.get(g).push(id);
-  }
 
-  for (const [g, ids] of generations) {
-    ids.sort((a, b) => positions.get(a).x - positions.get(b).x);
-
-    for (let i = 1; i < ids.length; i++) {
-      const previous = positions.get(ids[i - 1]);
-      const current = positions.get(ids[i]);
-
-      const minimum = NODE_WIDTH + SIBLING_GAP;
-
-      if (current.x - previous.x < minimum) {
-        current.x = previous.x + minimum;
-      }
+    if (!generations.has(g)) {
+        generations.set(g, []);
     }
-  }
+
+    generations.get(g).push(id);
+    }
+
+
+    // ------------------------------------------------------------
+    // Build spouse/family blocks
+    // ------------------------------------------------------------
+    //
+    // A block contains people who are connected as partners.
+    //
+    // Example:
+    //
+    //   Sven + Ragna
+    //
+    // becomes:
+    //
+    //   [ Sven, Ragna ]
+    //
+    // If Sven has another partner:
+    //
+    //   [ Sven, Ragna, OtherPartner ]
+    //
+    // they remain one connected block.
+    //
+
+    function buildFamilyBlocks(ids) {
+    const idSet = new Set(ids);
+
+    const parent = new Map();
+
+    for (const id of ids) {
+        parent.set(id, id);
+    }
+
+    function find(id) {
+        let root = id;
+
+        while (parent.get(root) !== root) {
+        root = parent.get(root);
+        }
+
+        while (parent.get(id) !== id) {
+        const next = parent.get(id);
+        parent.set(id, root);
+        id = next;
+        }
+
+        return root;
+    }
+
+    function union(a, b) {
+        if (!idSet.has(a) || !idSet.has(b)) return;
+
+        const ra = find(a);
+        const rb = find(b);
+
+        if (ra !== rb) {
+        parent.set(rb, ra);
+        }
+    }
+
+    // Connect partners.
+    for (const f of infos) {
+        const parents = f.parents.filter(id => idSet.has(id));
+
+        if (parents.length < 2) continue;
+
+        const first = parents[0];
+
+        for (let i = 1; i < parents.length; i++) {
+        union(first, parents[i]);
+        }
+    }
+
+    const groups = new Map();
+
+    for (const id of ids) {
+        const root = find(id);
+
+        if (!groups.has(root)) {
+        groups.set(root, []);
+        }
+
+        groups.get(root).push(id);
+    }
+
+    return [...groups.values()];
+    }
+
+
+    // ------------------------------------------------------------
+    // Calculate the width of a family block
+    // ------------------------------------------------------------
+
+    function blockBounds(block) {
+    const xs = block.map(id => positions.get(id).x);
+
+    return {
+        left: Math.min(...xs),
+        right: Math.max(...xs),
+        center: (
+        Math.min(...xs) +
+        Math.max(...xs)
+        ) / 2
+    };
+    }
+
+
+    // ------------------------------------------------------------
+    // Compress spouses
+    // ------------------------------------------------------------
+    //
+    // This is important.
+    //
+    // If Sven and Ragna have drifted apart:
+    //
+    //   Sven ---------------- Ragna
+    //
+    // move them together:
+    //
+    //   Sven -- Ragna
+    //
+    // without changing the center of the couple.
+    //
+
+    function compressFamilyBlock(block) {
+    if (block.length < 2) return;
+
+    block.sort((a, b) =>
+        positions.get(a).x - positions.get(b).x
+    );
+
+    const bounds = blockBounds(block);
+    const center = bounds.center;
+
+    const totalWidth =
+        (block.length - 1) *
+        (NODE_WIDTH + SPOUSE_GAP);
+
+    let x =
+        center -
+        totalWidth / 2;
+
+    for (const id of block) {
+        positions.get(id).x = x;
+        x += NODE_WIDTH + SPOUSE_GAP;
+    }
+    }
+
+
+    // ------------------------------------------------------------
+    // Resolve collisions inside one generation
+    // ------------------------------------------------------------
+    //
+    // We sort FAMILY BLOCKS, not individual people.
+    //
+    // This means:
+    //
+    //     Sven -- Ragna
+    //
+    // can never become:
+    //
+    //     Sven -- Sveinke -- Ragna
+    //
+    // because Sven/Ragna are moved together.
+    //
+
+    for (const [g, ids] of generations) {
+
+    const blocks = buildFamilyBlocks(ids);
+
+    // First make every couple compact.
+    for (const block of blocks) {
+        compressFamilyBlock(block);
+    }
+
+    // Sort complete blocks by their left edge.
+    blocks.sort((a, b) => {
+        return blockBounds(a).left -
+            blockBounds(b).left;
+    });
+
+
+    // ----------------------------------------------------------
+    // Push overlapping blocks apart
+    // ----------------------------------------------------------
+
+    let previousRight = null;
+
+    for (const block of blocks) {
+
+        let bounds = blockBounds(block);
+
+        if (previousRight !== null) {
+
+        const requiredLeft =
+            previousRight +
+            NODE_WIDTH +
+            SIBLING_GAP;
+
+        if (bounds.left < requiredLeft) {
+
+            const shift =
+            requiredLeft -
+            bounds.left;
+
+            // Move the ENTIRE family block.
+            for (const id of block) {
+            positions.get(id).x += shift;
+            }
+
+            bounds = blockBounds(block);
+        }
+        }
+
+        previousRight = bounds.right;
+    }
+    }
 
   // ------------------------------------------------------------
   // 9. Safety net for isolated people
