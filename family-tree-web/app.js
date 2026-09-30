@@ -170,107 +170,175 @@ function buildVisibleTree(focusId) {
 }
 
 /*
- * FAMILY-GRAPH LAYOUT
+ * FAMILY-BLOCK / BARYCENTRIC LAYOUT
  *
- * The data is not a strict tree. A person may be:
+ * The tree is not laid out as a simple list of people per generation.
  *
- *   - a child in one family
- *   - a parent in another family
- *   - a spouse in another family
+ * Instead:
  *
- * and a family may have one or two known parents.
+ *   1. Families are treated as the primary layout units.
+ *   2. Spouses stay together as one horizontal block.
+ *   3. Siblings stay together as one child block.
+ *   4. Each family block gets a desired horizontal position based on
+ *      the positions of its connected families.
+ *   5. Several barycentric/median passes reduce crossings.
+ *   6. Blocks are finally packed without breaking spouse/sibling groups.
  *
- * Therefore the layout is built around the family graph rather than by
- * recursively walking one branch and fixing positions afterwards.
+ * This is deliberately tolerant of incomplete Gramps data:
  *
- * The algorithm has four stages:
- *
- *   1. Build family/person indexes.
- *   2. Calculate the horizontal width required by each branch.
- *   3. Place connected family components from their topmost families down.
- *   4. Run a small constraint pass to align families without destroying
- *      sibling groups.
+ *   - one known parent
+ *   - two known parents
+ *   - childless couples
+ *   - spouses with their own parents
+ *   - people belonging to several families
  */
+
 function calculatePositions(tree) {
   const { generation, people, families } = tree;
+
   const positions = new Map();
 
   const NODE_WIDTH = 160;
-  const SPOUSE_GAP = 18;
-  const SIBLING_GAP = 38;
-  const FAMILY_GAP = 70;
-  const GAP_Y = 145;
+    const SPOUSE_GAP = 10;
+    const SIBLING_GAP = 5;
+    const FAMILY_GAP = 25;
+    const GAP_Y = 150;
 
   const visible = new Set(people);
 
   // ------------------------------------------------------------
-  // 1. Normalised family graph
+  // 1. Build normalised family records
   // ------------------------------------------------------------
 
-  const infos = families.map(f => ({
-    id: f.id,
-    family: f,
-    parents: familyParents(f).filter(id => visible.has(id)),
-    children: familyChildren(f).filter(id => visible.has(id)),
-  })).filter(f => f.parents.length || f.children.length);
+  const infos = families
+    .map(f => ({
+      id: f.id,
+      family: f,
 
-  const familyById = new Map(infos.map(f => [f.id, f]));
-  const parentFamilies = new Map(); // person -> families where person is a child
-  const childFamilies = new Map();  // person -> families where person is a parent
-  const personFamilies = new Map(); // person -> every visible family
+      parents: familyParents(f)
+        .filter(id => visible.has(id)),
 
-  function add(map, key, value) {
-    if (!map.has(key)) map.set(key, []);
+      children: familyChildren(f)
+        .filter(id => visible.has(id)),
+    }))
+    .filter(f =>
+      f.parents.length > 0 ||
+      f.children.length > 0
+    );
+
+  const familyById = new Map(
+    infos.map(f => [f.id, f])
+  );
+
+  // ------------------------------------------------------------
+  // 2. Person <-> family indexes
+  // ------------------------------------------------------------
+
+  const familiesAsParent = new Map();
+  const familiesAsChild = new Map();
+  const personFamilies = new Map();
+
+  function addTo(map, key, value) {
+    if (!map.has(key)) {
+      map.set(key, []);
+    }
+
     map.get(key).push(value);
   }
 
   for (const f of infos) {
-    for (const p of f.parents) {
-      add(childFamilies, p, f);
-      add(personFamilies, p, f);
+    for (const parent of f.parents) {
+      addTo(familiesAsParent, parent, f);
+      addTo(personFamilies, parent, f);
     }
-    for (const c of f.children) {
-      add(parentFamilies, c, f);
-      add(personFamilies, c, f);
+
+    for (const child of f.children) {
+      addTo(familiesAsChild, child, f);
+      addTo(personFamilies, child, f);
     }
   }
 
   // ------------------------------------------------------------
-  // 2. Width calculation
+  // 3. Generation helpers
+  // ------------------------------------------------------------
+
+  function personY(id) {
+    const g = generation.get(id) ?? 0;
+    return g * GAP_Y;
+  }
+
+  function familyGeneration(f) {
+    const values = [
+      ...f.parents.map(id => generation.get(id)),
+      ...f.children.map(id => generation.get(id)),
+    ].filter(Number.isFinite);
+
+    if (!values.length) {
+      return 0;
+    }
+
+    return Math.min(...values);
+  }
+
+  // ------------------------------------------------------------
+  // 4. Spouse groups
   // ------------------------------------------------------------
   //
-  // A child gets a horizontal slot large enough for their own family.
-  // This keeps siblings together without treating spouses as siblings.
+  // A person can have several partners.
+  //
+  // We therefore don't use one global "partnerPair" map. Instead we
+  // construct spouse groups for each family. This avoids accidentally
+  // replacing one partner when a person appears in several families.
+
+  const spouseGroups = new Map();
+
+  for (const f of infos) {
+    if (f.parents.length < 2) {
+      continue;
+    }
+
+    for (const parent of f.parents) {
+      if (!spouseGroups.has(parent)) {
+        spouseGroups.set(parent, new Set());
+      }
+
+      for (const other of f.parents) {
+        if (other !== parent) {
+          spouseGroups.get(parent).add(other);
+        }
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 5. Build family blocks
+  // ------------------------------------------------------------
+  //
+  // A family block is:
+  //
+  //       [parent] [parent]
+  //              |
+  //        child child child
+  //
+  // The children themselves are treated as slots. Their own descendant
+  // family is considered when calculating the width of that slot.
+  //
 
   const personWidthMemo = new Map();
   const familyWidthMemo = new Map();
+
   const personStack = new Set();
   const familyStack = new Set();
 
   function coupleWidth(parents) {
-    if (!parents.length) return NODE_WIDTH;
-    return parents.length * NODE_WIDTH +
-      Math.max(0, parents.length - 1) * SPOUSE_GAP;
-  }
-
-  function familyWidth(f) {
-    if (familyWidthMemo.has(f.id)) return familyWidthMemo.get(f.id);
-    if (familyStack.has(f.id)) return coupleWidth(f.parents);
-
-    familyStack.add(f.id);
-
-    let width = coupleWidth(f.parents);
-
-    if (f.children.length) {
-      const childWidths = f.children.map(personWidth);
-      const childrenWidth = childWidths.reduce((a, b) => a + b, 0) +
-        Math.max(0, childWidths.length - 1) * SIBLING_GAP;
-      width = Math.max(width, childrenWidth);
+    if (!parents.length) {
+      return NODE_WIDTH;
     }
 
-    familyStack.delete(f.id);
-    familyWidthMemo.set(f.id, width);
-    return width;
+    return (
+      parents.length * NODE_WIDTH +
+      Math.max(0, parents.length - 1) * SPOUSE_GAP
+    );
   }
 
   function personWidth(id) {
@@ -280,13 +348,17 @@ function calculatePositions(tree) {
     personStack.add(id);
 
     let width = NODE_WIDTH;
-    const ownFamilies = childFamilies.get(id) || [];
+    const ownFamilies = familiesAsChild.get(id) || [];
 
     if (ownFamilies.length) {
-      const branchWidths = ownFamilies.map(familyWidth);
-      const branchWidth = branchWidths.reduce((a, b) => a + b, 0) +
-        Math.max(0, branchWidths.length - 1) * FAMILY_GAP;
-      width = Math.max(width, branchWidth);
+        const branchWidths = ownFamilies.map(familyWidth);
+
+        // A person's different families should not automatically be added
+        // together. Use the widest branch as the person's required width.
+        //
+        // This prevents one person with several spouses/families from causing
+        // the entire tree to explode horizontally.
+        width = Math.max(width, ...branchWidths);
     }
 
     personStack.delete(id);
@@ -294,64 +366,128 @@ function calculatePositions(tree) {
     return width;
   }
 
-  for (const f of infos) familyWidth(f);
+  function familyWidth(f, stack = new Set()) {
+    if (familyWidthMemo.has(f.id)) {
+      return familyWidthMemo.get(f.id);
+    }
 
-  // ------------------------------------------------------------
-  // 3. Family graph helpers
-  // ------------------------------------------------------------
+    if (familyStack.has(f.id)) {
+      return coupleWidth(f.parents);
+    }
 
-  function familyGeneration(f) {
-    const pg = f.parents
-      .map(id => generation.get(id))
-      .filter(g => g !== undefined);
+    familyStack.add(f.id);
 
-    if (pg.length) return Math.min(...pg);
+    let width = coupleWidth(f.parents);
 
-    const cg = f.children
-      .map(id => generation.get(id))
-      .filter(g => g !== undefined);
+    if (f.children.length) {
+        const childWidths = f.children.map(personWidth);
 
-    return cg.length ? Math.min(...cg) - 1 : 0;
+        const childrenWidth =
+        childWidths.reduce((a, b) => a + b, 0) +
+        Math.max(0, childWidths.length - 1) * SIBLING_GAP;
+
+        width = Math.max(width, childrenWidth);
+    }
+
+    familyStack.delete(f.id);
+
+    familyWidthMemo.set(f.id, width);
+    // const parentWidth = coupleWidth(f.parents);
+
+    // if (!f.children.length) {
+    //   familyWidthMemo.set(
+    //     f.id,
+    //     parentWidth
+    //   );
+
+    //   return parentWidth;
+    // }
+
+    // const childWidths = f.children.map(
+    //   child => personWidth(child, nextStack)
+    // );
+
+    // const childrenWidth =
+    //   childWidths.reduce((a, b) => a + b, 0) +
+    //   Math.max(0, childWidths.length - 1) * SIBLING_GAP;
+
+    // const width = Math.max(
+    //   parentWidth,
+    //   childrenWidth
+    // );
+
+    // familyWidthMemo.set(
+    //   f.id,
+    //   width
+    // );
+
+    return width;
   }
 
-  function personY(id) {
-    return (generation.get(id) ?? 0) * GAP_Y;
+  // ------------------------------------------------------------
+  // 6. Connected family components
+  // ------------------------------------------------------------
+  //
+  // Families are connected when they share a person.
+  //
+  // This is important because:
+  //
+  //   parents -> child -> spouse -> spouse's parents
+  //
+  // must be treated as one structural component.
+
+  const familyNeighbours = new Map();
+
+  for (const f of infos) {
+    familyNeighbours.set(f.id, new Set());
   }
 
-  // Families are connected when they share a person. This is the crucial
-  // difference from the previous recursive layout: spouse ancestry belongs
-  // to the same connected component as the marriage family.
-  const familyAdj = new Map();
+  for (const f of infos) {
+    const connectedPeople = [
+      ...f.parents,
+      ...f.children,
+    ];
 
-  for (const f of infos) familyAdj.set(f.id, new Set());
+    for (const person of connectedPeople) {
+      const related = personFamilies.get(person) || [];
 
-  for (const [, fs] of personFamilies) {
-    for (let i = 0; i < fs.length; i++) {
-      for (let j = i + 1; j < fs.length; j++) {
-        familyAdj.get(fs[i].id).add(fs[j].id);
-        familyAdj.get(fs[j].id).add(fs[i].id);
+      for (const other of related) {
+        if (other.id !== f.id) {
+          familyNeighbours
+            .get(f.id)
+            .add(other.id);
+        }
       }
     }
   }
 
   const components = [];
-  const seenFamilies = new Set();
+  const visitedFamilies = new Set();
 
   for (const f of infos) {
-    if (seenFamilies.has(f.id)) continue;
+    if (visitedFamilies.has(f.id)) {
+      continue;
+    }
 
     const component = [];
-    const queue = [f];
-    seenFamilies.add(f.id);
+    const queue = [f.id];
+
+    visitedFamilies.add(f.id);
 
     while (queue.length) {
-      const current = queue.shift();
+      const id = queue.shift();
+      const current = familyById.get(id);
+
+      if (!current) {
+        continue;
+      }
+
       component.push(current);
 
-      for (const neighbourId of familyAdj.get(current.id) || []) {
-        if (!seenFamilies.has(neighbourId)) {
-          seenFamilies.add(neighbourId);
-          queue.push(familyById.get(neighbourId));
+      for (const neighbour of familyNeighbours.get(id) || []) {
+        if (!visitedFamilies.has(neighbour)) {
+          visitedFamilies.add(neighbour);
+          queue.push(neighbour);
         }
       }
     }
@@ -360,530 +496,813 @@ function calculatePositions(tree) {
   }
 
   // ------------------------------------------------------------
-  // 4. Initial placement of a family component
-  // ------------------------------------------------------------
-
-  const placedFamilies = new Set();
-
-  function placeParents(f, desiredCenter) {
-    const parents = f.parents;
-
-    if (!parents.length) return desiredCenter;
-
-    const fixed = parents.filter(id => positions.has(id));
-
-    // Complete family has no fixed person yet.
-    if (!fixed.length) {
-      const total = coupleWidth(parents);
-      let x = desiredCenter - total / 2 + NODE_WIDTH / 2;
-
-      for (const id of parents) {
-        positions.set(id, {
-          x,
-          y: personY(id),
-        });
-        x += NODE_WIDTH + SPOUSE_GAP;
-      }
-
-      return desiredCenter;
-    }
-
-    // Two-parent family: keep already positioned parents fixed and put the
-    // missing spouse next to the known parent.
-    if (parents.length === 2) {
-      const a = parents[0];
-      const b = parents[1];
-      const pa = positions.get(a);
-      const pb = positions.get(b);
-
-      if (pa && pb) {
-        return (pa.x + pb.x) / 2;
-      }
-
-      const fixedId = pa ? a : b;
-      const missingId = pa ? b : a;
-      const fixedX = positions.get(fixedId).x;
-
-      // Alternate sides for multiple spouse families.
-      const spouseFamilies = childFamilies.get(fixedId) || [];
-      const index = spouseFamilies.indexOf(f);
-      const direction = index >= 0 && index % 2 ? -1 : 1;
-
-      const missingX = fixedX + direction * (NODE_WIDTH + SPOUSE_GAP);
-
-      positions.set(missingId, {
-        x: missingX,
-        y: personY(missingId),
-      });
-
-      return (fixedX + missingX) / 2;
-    }
-
-    // General case for more than two parents.
-    const fixedCenter = fixed.reduce(
-      (sum, id) => sum + positions.get(id).x, 0
-    ) / fixed.length;
-
-    const missing = parents.filter(id => !positions.has(id));
-    let x = fixedCenter -
-      ((missing.length - 1) * (NODE_WIDTH + SPOUSE_GAP)) / 2;
-
-    for (const id of missing) {
-      positions.set(id, { x, y: personY(id) });
-      x += NODE_WIDTH + SPOUSE_GAP;
-    }
-
-    return parents.reduce(
-      (sum, id) => sum + positions.get(id).x, 0
-    ) / parents.length;
-  }
-
-  function placeFamily(f, desiredCenter) {
-    if (placedFamilies.has(f.id)) return;
-
-    const center = placeParents(f, desiredCenter);
-    placedFamilies.add(f.id);
-
-    // Children form ONE sibling block. Each child's slot contains the width
-    // of that child's own descendant family graph.
-    if (f.children.length) {
-      const widths = f.children.map(personWidth);
-      const total = widths.reduce((a, b) => a + b, 0) +
-        Math.max(0, widths.length - 1) * SIBLING_GAP;
-
-      let x = center - total / 2;
-
-      f.children.forEach((childId, index) => {
-        const width = widths[index];
-        const desiredX = x + width / 2;
-
-        if (!positions.has(childId)) {
-          positions.set(childId, {
-            x: desiredX,
-            y: personY(childId),
-          });
-        } else {
-          positions.get(childId).y = personY(childId);
-        }
-
-        x += width + SIBLING_GAP;
-      });
-    }
-  }
-
-  // ------------------------------------------------------------
-  // 5. Choose a sensible root for each connected component
+  // 7. Initial family ordering
   // ------------------------------------------------------------
   //
-  // The family with the smallest generation is the highest family in the
-  // component. If several exist, prefer the one closest to the focus.
+  // Sort families primarily by generation.
+  // Within a generation use the birth year of their parents as a
+  // deterministic initial ordering.
+  //
 
-  function componentRoot(component) {
-    return component.slice().sort((a, b) => {
+  function familyBirthKey(f) {
+    const years = f.parents
+      .map(id => birthYear(S.people.get(id)))
+      .filter(Number.isFinite);
+
+    if (!years.length) {
+      return Infinity;
+    }
+
+    return Math.min(...years);
+  }
+
+  for (const component of components) {
+    component.sort((a, b) => {
       const ga = familyGeneration(a);
       const gb = familyGeneration(b);
 
-      if (ga !== gb) return ga - gb;
-
-      const da = a.parents.length
-        ? Math.min(...a.parents.map(id => Math.abs(generation.get(id) ?? 0)))
-        : Infinity;
-      const db = b.parents.length
-        ? Math.min(...b.parents.map(id => Math.abs(generation.get(id) ?? 0)))
-        : Infinity;
-
-      return da - db;
-    })[0];
-  }
-
-  // Put components next to each other. Connected family components are laid
-  // out as units, so two unrelated branches cannot push individual siblings
-  // apart after the fact.
-  let componentCursor = 0;
-
-  const orderedComponents = components.sort((a, b) => {
-    return familyGeneration(componentRoot(a)) -
-      familyGeneration(componentRoot(b));
-  });
-
-  for (const component of orderedComponents) {
-    const root = componentRoot(component);
-    const width = familyWidth(root);
-    const center = componentCursor + width / 2;
-
-    placeFamily(root, center);
-
-    componentCursor += width + FAMILY_GAP;
-  }
-
-  // ------------------------------------------------------------
-  // 6. Grow the connected component in both directions
-  // ------------------------------------------------------------
-  //
-  // Starting with the root family only positions one layer. Now repeatedly
-  // visit families whose people have positions. This naturally handles:
-  //
-  //   A's parents
-  //   B's parents
-  //   A/B's children
-  //   children's spouses
-  //   spouses' parents
-  //
-  // without assuming that one spouse is the root of the branch.
-
-  let changed = true;
-  let safety = infos.length * 4 + 10;
-
-  while (changed && safety-- > 0) {
-    changed = false;
-
-    for (const f of infos) {
-      const parentKnown = f.parents.some(id => positions.has(id));
-      const childKnown = f.children.some(id => positions.has(id));
-
-      if (!placedFamilies.has(f.id) && (parentKnown || childKnown)) {
-        let anchor = null;
-
-        if (parentKnown) {
-          const xs = f.parents
-            .filter(id => positions.has(id))
-            .map(id => positions.get(id).x);
-          anchor = xs.reduce((a, b) => a + b, 0) / xs.length;
-        } else {
-          const xs = f.children
-            .filter(id => positions.has(id))
-            .map(id => positions.get(id).x);
-          anchor = xs.reduce((a, b) => a + b, 0) / xs.length;
-        }
-
-        placeFamily(f, anchor);
-        changed = true;
+      if (ga !== gb) {
+        return ga - gb;
       }
-    }
-  }
 
-  // ------------------------------------------------------------
-  // 7. Constraint pass
-  // ------------------------------------------------------------
-  //
-  // The initial graph placement gives us the structure. This pass makes
-  // family centers and child groups line up more naturally while keeping
-  // sibling order intact.
-
-  for (let pass = 0; pass < 5; pass++) {
-    for (const f of infos) {
-      const knownParents = f.parents.filter(id => positions.has(id));
-      const knownChildren = f.children.filter(id => positions.has(id));
-
-      if (!knownParents.length || !knownChildren.length) continue;
-
-      const parentCenter = knownParents.reduce(
-        (sum, id) => sum + positions.get(id).x, 0
-      ) / knownParents.length;
-
-      const childXs = knownChildren.map(
-        id => positions.get(id).x
-      );
-
-      const childCenter = childXs.reduce(
-        (a, b) => a + b, 0
-      ) / childXs.length;
-
-      // Only make a modest correction. The family graph structure remains
-      // authoritative and we don't want one branch to drag another branch
-      // across the whole canvas.
-      const correction =
-        Math.max(-55, Math.min(55, parentCenter - childCenter));
-
-      // If the family has multiple children, move the entire sibling group
-      // together. This is what prevents the old "random generation row"
-      // effect.
-      for (const child of knownChildren) {
-        positions.get(child).x += correction;
-      }
-    }
-  }
-
-  // ------------------------------------------------------------
-    // 8. Collision resolution — family blocks
-    // ------------------------------------------------------------
-    //
-    // IMPORTANT:
-    // People are not independent nodes.
-    //
-    // A normal family:
-    //
-    //     Sven ─ Ragna
-    //          |
-    //         Orm
-    //
-    // must remain a single horizontal block on the parent generation.
-    //
-    // The old collision resolver could move people independently and therefore
-    // allow another person to end up between Sven and Ragna.
-    //
-    // We therefore resolve collisions between FAMILY BLOCKS, not people.
-    //
-
-    const generations = new Map();
-
-    for (const id of people) {
-    if (!positions.has(id)) continue;
-
-    const g = generation.get(id) ?? 0;
-
-    if (!generations.has(g)) {
-        generations.set(g, []);
-    }
-
-    generations.get(g).push(id);
-    }
-
-
-    // ------------------------------------------------------------
-    // Build spouse/family blocks
-    // ------------------------------------------------------------
-    //
-    // A block contains people who are connected as partners.
-    //
-    // Example:
-    //
-    //   Sven + Ragna
-    //
-    // becomes:
-    //
-    //   [ Sven, Ragna ]
-    //
-    // If Sven has another partner:
-    //
-    //   [ Sven, Ragna, OtherPartner ]
-    //
-    // they remain one connected block.
-    //
-
-    function buildFamilyBlocks(ids) {
-    const idSet = new Set(ids);
-
-    const parent = new Map();
-
-    for (const id of ids) {
-        parent.set(id, id);
-    }
-
-    function find(id) {
-        let root = id;
-
-        while (parent.get(root) !== root) {
-        root = parent.get(root);
-        }
-
-        while (parent.get(id) !== id) {
-        const next = parent.get(id);
-        parent.set(id, root);
-        id = next;
-        }
-
-        return root;
-    }
-
-    function union(a, b) {
-        if (!idSet.has(a) || !idSet.has(b)) return;
-
-        const ra = find(a);
-        const rb = find(b);
-
-        if (ra !== rb) {
-        parent.set(rb, ra);
-        }
-    }
-
-    // Connect partners.
-    for (const f of infos) {
-        const parents = f.parents.filter(id => idSet.has(id));
-
-        if (parents.length < 2) continue;
-
-        const first = parents[0];
-
-        for (let i = 1; i < parents.length; i++) {
-        union(first, parents[i]);
-        }
-    }
-
-    const groups = new Map();
-
-    for (const id of ids) {
-        const root = find(id);
-
-        if (!groups.has(root)) {
-        groups.set(root, []);
-        }
-
-        groups.get(root).push(id);
-    }
-
-    return [...groups.values()];
-    }
-
-
-    // ------------------------------------------------------------
-    // Calculate the width of a family block
-    // ------------------------------------------------------------
-
-    function blockBounds(block) {
-    const xs = block.map(id => positions.get(id).x);
-
-    return {
-        left: Math.min(...xs),
-        right: Math.max(...xs),
-        center: (
-        Math.min(...xs) +
-        Math.max(...xs)
-        ) / 2
-    };
-    }
-
-
-    // ------------------------------------------------------------
-    // Compress spouses
-    // ------------------------------------------------------------
-    //
-    // This is important.
-    //
-    // If Sven and Ragna have drifted apart:
-    //
-    //   Sven ---------------- Ragna
-    //
-    // move them together:
-    //
-    //   Sven -- Ragna
-    //
-    // without changing the center of the couple.
-    //
-
-    function compressFamilyBlock(block) {
-    if (block.length < 2) return;
-
-    block.sort((a, b) =>
-        positions.get(a).x - positions.get(b).x
-    );
-
-    const bounds = blockBounds(block);
-    const center = bounds.center;
-
-    const totalWidth =
-        (block.length - 1) *
-        (NODE_WIDTH + SPOUSE_GAP);
-
-    let x =
-        center -
-        totalWidth / 2;
-
-    for (const id of block) {
-        positions.get(id).x = x;
-        x += NODE_WIDTH + SPOUSE_GAP;
-    }
-    }
-
-
-    // ------------------------------------------------------------
-    // Resolve collisions inside one generation
-    // ------------------------------------------------------------
-    //
-    // We sort FAMILY BLOCKS, not individual people.
-    //
-    // This means:
-    //
-    //     Sven -- Ragna
-    //
-    // can never become:
-    //
-    //     Sven -- Sveinke -- Ragna
-    //
-    // because Sven/Ragna are moved together.
-    //
-
-    for (const [g, ids] of generations) {
-
-    const blocks = buildFamilyBlocks(ids);
-
-    // First make every couple compact.
-    for (const block of blocks) {
-        compressFamilyBlock(block);
-    }
-
-    // Sort complete blocks by their left edge.
-    blocks.sort((a, b) => {
-        return blockBounds(a).left -
-            blockBounds(b).left;
+      return familyBirthKey(a) - familyBirthKey(b);
     });
-
-
-    // ----------------------------------------------------------
-    // Push overlapping blocks apart
-    // ----------------------------------------------------------
-
-    let previousRight = null;
-
-    for (const block of blocks) {
-
-        let bounds = blockBounds(block);
-
-        if (previousRight !== null) {
-
-        const requiredLeft =
-            previousRight +
-            NODE_WIDTH +
-            SIBLING_GAP;
-
-        if (bounds.left < requiredLeft) {
-
-            const shift =
-            requiredLeft -
-            bounds.left;
-
-            // Move the ENTIRE family block.
-            for (const id of block) {
-            positions.get(id).x += shift;
-            }
-
-            bounds = blockBounds(block);
-        }
-        }
-
-        previousRight = bounds.right;
-    }
-    }
+  }
 
   // ------------------------------------------------------------
-  // 9. Safety net for isolated people
+  // 8. Create person order per generation
   // ------------------------------------------------------------
 
-  let isolatedX = componentCursor;
+  const levels = new Map();
 
   for (const id of people) {
-    if (positions.has(id)) continue;
+    const g = generation.get(id) ?? 0;
+
+    if (!levels.has(g)) {
+      levels.set(g, []);
+    }
+
+    levels.get(g).push(id);
+  }
+
+  const sortedGenerations = [...levels.keys()]
+    .sort((a, b) => a - b);
+
+  // ------------------------------------------------------------
+  // 9. Initial ordering based on family structure
+  // ------------------------------------------------------------
+
+  function relatedFamilyScore(id) {
+    const related = personFamilies.get(id) || [];
+
+    if (!related.length) {
+      return Infinity;
+    }
+
+    const values = related.map(f => {
+      const childYears = f.children
+        .map(c => birthYear(S.people.get(c)))
+        .filter(Number.isFinite);
+
+      const parentYears = f.parents
+        .map(p => birthYear(S.people.get(p)))
+        .filter(Number.isFinite);
+
+      return [
+        ...parentYears,
+        ...childYears,
+      ];
+    }).flat();
+
+    return values.length
+      ? Math.min(...values)
+      : Infinity;
+  }
+
+  for (const g of sortedGenerations) {
+    const ids = levels.get(g);
+
+    ids.sort((a, b) => {
+      const sa = relatedFamilyScore(a);
+      const sb = relatedFamilyScore(b);
+
+      if (sa !== sb) {
+        return sa - sb;
+      }
+
+      return String(
+        S.people.get(a)?.name || ""
+      ).localeCompare(
+        String(S.people.get(b)?.name || "")
+      );
+    });
+  }
+
+  // ------------------------------------------------------------
+  // 10. Convert family relationships into ordering constraints
+  // ------------------------------------------------------------
+  //
+  // For each person we calculate the people they should remain near:
+  //
+  //   - parents
+  //   - children
+  //   - spouses
+  //
+  // The barycentric passes below use these relationships to improve
+  // horizontal ordering.
+
+  const neighbours = new Map();
+
+  for (const id of people) {
+    neighbours.set(id, new Set());
+  }
+
+  for (const f of infos) {
+    for (const parent of f.parents) {
+      for (const child of f.children) {
+        neighbours.get(parent)?.add(child);
+        neighbours.get(child)?.add(parent);
+      }
+    }
+
+    for (let i = 0; i < f.parents.length; i++) {
+      for (let j = i + 1; j < f.parents.length; j++) {
+        neighbours.get(f.parents[i])?.add(f.parents[j]);
+        neighbours.get(f.parents[j])?.add(f.parents[i]);
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 11. Barycentric ordering
+  // ------------------------------------------------------------
+  //
+  // Repeatedly reorder each generation according to the median position
+  // of connected people in neighbouring generations.
+  //
+  // Median rather than average is intentional: one very large branch
+  // should not pull an entire family across the tree.
+
+  function currentIndex(id, g) {
+    const level = levels.get(g) || [];
+    return level.indexOf(id);
+  }
+
+  function neighbourIndices(id, g) {
+    const result = [];
+
+    for (const neighbour of neighbours.get(id) || []) {
+      if (generation.get(neighbour) !== g) {
+        continue;
+      }
+
+      const index = currentIndex(
+        neighbour,
+        g
+      );
+
+      if (index >= 0) {
+        result.push(index);
+      }
+    }
+
+    return result;
+  }
+
+  function median(values) {
+    if (!values.length) {
+      return Infinity;
+    }
+
+    const sorted = [...values].sort(
+      (a, b) => a - b
+    );
+
+    const middle = Math.floor(
+      sorted.length / 2
+    );
+
+    if (sorted.length % 2) {
+      return sorted[middle];
+    }
+
+    return (
+      sorted[middle - 1] +
+      sorted[middle]
+    ) / 2;
+  }
+
+  function barycentricKey(id, direction) {
+    const g = generation.get(id) ?? 0;
+    const targetGeneration =
+      direction === "up"
+        ? g - 1
+        : g + 1;
+
+    const values = [];
+
+    for (const neighbour of neighbours.get(id) || []) {
+      if (
+        generation.get(neighbour) ===
+        targetGeneration
+      ) {
+        const index = currentIndex(
+          neighbour,
+          targetGeneration
+        );
+
+        if (index >= 0) {
+          values.push(index);
+        }
+      }
+    }
+
+    return median(values);
+  }
+
+  // ------------------------------------------------------------
+  // 12. Keep spouses together during ordering
+  // ------------------------------------------------------------
+
+  function buildSpouseBlocks(ids, g) {
+    const remaining = new Set(ids);
+    const blocks = [];
+
+    while (remaining.size) {
+      const first = remaining.values().next().value;
+      remaining.delete(first);
+
+      const block = [first];
+
+      const relatedSpouses =
+        spouseGroups.get(first) || new Set();
+
+      for (const spouse of relatedSpouses) {
+        if (
+          remaining.has(spouse) &&
+          generation.get(spouse) === g
+        ) {
+          block.push(spouse);
+          remaining.delete(spouse);
+        }
+      }
+
+      blocks.push(block);
+    }
+
+    return blocks;
+  }
+
+  function blockBarycenter(block, direction) {
+    const values = [];
+
+    for (const id of block) {
+      const value =
+        barycentricKey(id, direction);
+
+      if (Number.isFinite(value)) {
+        values.push(value);
+      }
+    }
+
+    return values.length
+      ? median(values)
+      : Infinity;
+  }
+
+  // ------------------------------------------------------------
+  // 13. Repeated median sweeps
+  // ------------------------------------------------------------
+
+  for (let pass = 0; pass < 8; pass++) {
+
+    // Top -> bottom
+    for (const g of sortedGenerations) {
+      if (g === sortedGenerations[0]) {
+        continue;
+      }
+
+      const ids = levels.get(g);
+
+      const blocks = buildSpouseBlocks(
+        ids,
+        g
+      );
+
+      blocks.sort((a, b) => {
+        const ka =
+          blockBarycenter(a, "up");
+
+        const kb =
+          blockBarycenter(b, "up");
+
+        if (ka !== kb) {
+          return ka - kb;
+        }
+
+        return ids.indexOf(a[0]) -
+          ids.indexOf(b[0]);
+      });
+
+      levels.set(
+        g,
+        blocks.flat()
+      );
+    }
+
+    // Bottom -> top
+    for (
+      let i = sortedGenerations.length - 1;
+      i >= 0;
+      i--
+    ) {
+      const g = sortedGenerations[i];
+
+      if (
+        i ===
+        sortedGenerations.length - 1
+      ) {
+        continue;
+      }
+
+      const ids = levels.get(g);
+
+      const blocks = buildSpouseBlocks(
+        ids,
+        g
+      );
+
+      blocks.sort((a, b) => {
+        const ka =
+          blockBarycenter(a, "down");
+
+        const kb =
+          blockBarycenter(b, "down");
+
+        if (ka !== kb) {
+          return ka - kb;
+        }
+
+        return ids.indexOf(a[0]) -
+          ids.indexOf(b[0]);
+      });
+
+      levels.set(
+        g,
+        blocks.flat()
+      );
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 14. Build family blocks from the final generation ordering
+  // ------------------------------------------------------------
+
+  const familyOrder = new Map();
+
+  for (const f of infos) {
+    const indices = [];
+
+    for (const parent of f.parents) {
+      const g = generation.get(parent);
+
+      if (g === undefined) {
+        continue;
+      }
+
+      const index = currentIndex(
+        parent,
+        g
+      );
+
+      if (index >= 0) {
+        indices.push(index);
+      }
+    }
+
+    for (const child of f.children) {
+      const g = generation.get(child);
+
+      if (g === undefined) {
+        continue;
+      }
+
+      const index = currentIndex(
+        child,
+        g
+      );
+
+      if (index >= 0) {
+        indices.push(index);
+      }
+    }
+
+    familyOrder.set(
+      f.id,
+      indices.length
+        ? median(indices)
+        : Infinity
+    );
+  }
+
+  // ------------------------------------------------------------
+  // 15. Determine horizontal positions
+  // ------------------------------------------------------------
+
+  const levelX = new Map();
+
+  for (const g of sortedGenerations) {
+    const ids = levels.get(g);
+
+    let cursor = 0;
+
+    for (const id of ids) {
+      const width = personWidth(id);
+
+      levelX.set(id, {
+        left: cursor,
+        center: cursor + width / 2,
+        width,
+      });
+
+      cursor += width + SIBLING_GAP;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 16. Calculate initial person positions
+  // ------------------------------------------------------------
+
+  for (const g of sortedGenerations) {
+    const ids = levels.get(g);
+
+    for (const id of ids) {
+      const info = levelX.get(id);
+
+      if (!info) {
+        continue;
+      }
+
+      positions.set(id, {
+        x: info.center,
+        y: personY(id),
+      });
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 17. Align family centres
+  // ------------------------------------------------------------
+  //
+  // Rather than moving individual children independently, move the
+  // complete sibling block.
+  //
+
+  function siblingBlock(f) {
+    return f.children.filter(
+      id => positions.has(id)
+    );
+  }
+
+  function parentCenter(f) {
+    const ids = f.parents.filter(
+      id => positions.has(id)
+    );
+
+    if (!ids.length) {
+      return null;
+    }
+
+    return (
+      ids.reduce(
+        (sum, id) =>
+          sum + positions.get(id).x,
+        0
+      ) / ids.length
+    );
+  }
+
+  function childCenter(f) {
+    const ids = siblingBlock(f);
+
+    if (!ids.length) {
+      return null;
+    }
+
+    return (
+      ids.reduce(
+        (sum, id) =>
+          sum + positions.get(id).x,
+        0
+      ) / ids.length
+    );
+  }
+
+  function moveBlock(ids, delta) {
+    for (const id of ids) {
+      if (!positions.has(id)) {
+        continue;
+      }
+
+      positions.get(id).x += delta;
+    }
+  }
+
+  // Multiple small passes are safer than one large correction.
+  for (let pass = 0; pass < 6; pass++) {
+    for (const f of infos) {
+      const pc = parentCenter(f);
+      const cc = childCenter(f);
+
+      if (
+        pc === null ||
+        cc === null
+      ) {
+        continue;
+      }
+
+      let delta = pc - cc;
+
+      // Prevent one huge family from dragging everything around.
+      delta = Math.max(
+        -80,
+        Math.min(80, delta)
+      );
+
+      moveBlock(
+        siblingBlock(f),
+        delta * 0.55
+      );
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 18. Place spouses next to each other
+  // ------------------------------------------------------------
+
+  for (const f of infos) {
+    if (f.parents.length < 2) {
+      continue;
+    }
+
+    const parents =
+      f.parents.filter(
+        id => positions.has(id)
+      );
+
+    if (parents.length < 2) {
+      continue;
+    }
+
+    const center =
+      parents.reduce(
+        (sum, id) =>
+          sum + positions.get(id).x,
+        0
+      ) / parents.length;
+
+    const totalWidth =
+      parents.length * NODE_WIDTH +
+      (parents.length - 1) * SPOUSE_GAP;
+
+    let x =
+      center - totalWidth / 2;
+
+    for (const parent of parents) {
+      positions.get(parent).x =
+        x + NODE_WIDTH / 2;
+
+      x +=
+        NODE_WIDTH +
+        SPOUSE_GAP;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 19. Collision handling by FAMILY BLOCK
+  // ------------------------------------------------------------
+  //
+  // This is the important difference from the old algorithm.
+  //
+  // We don't simply do:
+  //
+  //     person A -> person B -> person C
+  //
+  // and push them apart.
+  //
+  // Instead a generation is divided into blocks:
+  //
+  //     [couple] [sibling group] [couple] [sibling group]
+  //
+  // so moving one block doesn't destroy the relationships inside
+  // another block.
+  //
+
+  function makeGenerationBlocks(g) {
+    const ids = levels.get(g) || [];
+    const blocks = [];
+    const used = new Set();
+
+    // First create spouse blocks.
+    for (const id of ids) {
+      if (used.has(id)) {
+        continue;
+      }
+
+      const block = [id];
+      used.add(id);
+
+      const spouses =
+        spouseGroups.get(id) ||
+        new Set();
+
+      for (const spouse of spouses) {
+        if (
+          !used.has(spouse) &&
+          generation.get(spouse) === g &&
+          positions.has(spouse)
+        ) {
+          block.push(spouse);
+          used.add(spouse);
+        }
+      }
+
+      blocks.push(block);
+    }
+
+    // Now merge people that belong to the same sibling family.
+    const merged = [];
+    const assigned = new Set();
+
+    for (const block of blocks) {
+      const expanded = [...block];
+
+      for (const f of infos) {
+        const children =
+          f.children.filter(
+            id =>
+              positions.has(id) &&
+              generation.get(id) === g
+          );
+
+        if (
+          children.length &&
+          children.some(
+            id => expanded.includes(id)
+          )
+        ) {
+          for (const child of children) {
+            if (!expanded.includes(child)) {
+              expanded.push(child);
+            }
+          }
+        }
+      }
+
+      const key = expanded
+        .slice()
+        .sort()
+        .join("|");
+
+      if (!assigned.has(key)) {
+        assigned.add(key);
+        merged.push(expanded);
+      }
+    }
+
+    return merged;
+  }
+
+  function blockBounds(block) {
+    const xs = block
+      .filter(id => positions.has(id))
+      .map(id => positions.get(id).x);
+
+    if (!xs.length) {
+      return {
+        min: 0,
+        max: 0,
+        center: 0,
+      };
+    }
+
+    return {
+      min: Math.min(...xs),
+      max: Math.max(...xs),
+      center:
+        (Math.min(...xs) +
+          Math.max(...xs)) / 2,
+    };
+  }
+
+  for (const g of sortedGenerations) {
+    const blocks =
+      makeGenerationBlocks(g);
+
+    blocks.sort(
+      (a, b) =>
+        blockBounds(a).center -
+        blockBounds(b).center
+    );
+
+    for (let i = 1; i < blocks.length; i++) {
+      const previous =
+        blockBounds(blocks[i - 1]);
+
+      const current =
+        blockBounds(blocks[i]);
+
+      const required =
+        NODE_WIDTH +
+        SIBLING_GAP;
+
+      const overlap =
+        previous.max +
+        required -
+        current.min;
+
+      if (overlap > 0) {
+        moveBlock(
+          blocks[i],
+          overlap
+        );
+      }
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 20. Final family-centering pass
+  // ------------------------------------------------------------
+  //
+  // Now that collisions have been resolved, make another small
+  // adjustment toward the parent/child family centre.
+  //
+
+  for (let pass = 0; pass < 3; pass++) {
+    for (const f of infos) {
+      const pc = parentCenter(f);
+      const cc = childCenter(f);
+
+      if (
+        pc === null ||
+        cc === null
+      ) {
+        continue;
+      }
+
+      const delta =
+        Math.max(
+          -35,
+          Math.min(
+            35,
+            pc - cc
+          )
+        );
+
+      moveBlock(
+        siblingBlock(f),
+        delta * 0.35
+      );
+    }
+  }
+
+  // ------------------------------------------------------------
+  // 21. Place people that aren't connected to a family
+  // ------------------------------------------------------------
+
+  let fallbackX = 0;
+
+  for (const id of people) {
+    if (positions.has(id)) {
+      continue;
+    }
 
     positions.set(id, {
-      x: isolatedX,
+      x: fallbackX,
       y: personY(id),
     });
 
-    isolatedX += NODE_WIDTH + SIBLING_GAP;
+    fallbackX +=
+      NODE_WIDTH +
+      SIBLING_GAP;
   }
 
   // ------------------------------------------------------------
-  // 10. Center the complete visible graph
+  // 22. Final centering
   // ------------------------------------------------------------
 
   if (positions.size) {
-    const xs = [...positions.values()].map(p => p.x);
+    const xs = [...positions.values()]
+      .map(p => p.x);
+
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
-    const centerX = (minX + maxX) / 2;
 
-    for (const p of positions.values()) {
-      p.x -= centerX;
+    const centerX =
+      (minX + maxX) / 2;
+
+    for (const position of positions.values()) {
+      position.x -= centerX;
     }
   }
 
