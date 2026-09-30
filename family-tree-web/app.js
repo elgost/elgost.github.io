@@ -198,9 +198,9 @@ function calculatePositions(tree) {
 
   const positions = new Map();
 
-  const NODE_WIDTH = 160;
-    const SPOUSE_GAP = 10;
-    const SIBLING_GAP = 5;
+  const NODE_WIDTH = 200;
+    const SPOUSE_GAP = 30;
+    const SIBLING_GAP = 30;
     const FAMILY_GAP = 25;
     const GAP_Y = 150;
 
@@ -342,87 +342,35 @@ function calculatePositions(tree) {
   }
 
   function personWidth(id) {
-    if (personWidthMemo.has(id)) return personWidthMemo.get(id);
-    if (personStack.has(id)) return NODE_WIDTH;
+  // A person occupies one node slot.
+  // Their descendants are handled by their own family rows.
+  return NODE_WIDTH;
+}
 
-    personStack.add(id);
 
-    let width = NODE_WIDTH;
-    const ownFamilies = familiesAsChild.get(id) || [];
-
-    if (ownFamilies.length) {
-        const branchWidths = ownFamilies.map(familyWidth);
-
-        // A person's different families should not automatically be added
-        // together. Use the widest branch as the person's required width.
-        //
-        // This prevents one person with several spouses/families from causing
-        // the entire tree to explode horizontally.
-        width = Math.max(width, ...branchWidths);
-    }
-
-    personStack.delete(id);
-    personWidthMemo.set(id, width);
-    return width;
+function familyWidth(f) {
+  if (familyWidthMemo.has(f.id)) {
+    return familyWidthMemo.get(f.id);
   }
 
-  function familyWidth(f, stack = new Set()) {
-    if (familyWidthMemo.has(f.id)) {
-      return familyWidthMemo.get(f.id);
-    }
+  const parentWidth =
+    f.parents.length * NODE_WIDTH +
+    Math.max(0, f.parents.length - 1) * SPOUSE_GAP;
 
-    if (familyStack.has(f.id)) {
-      return coupleWidth(f.parents);
-    }
+  let childrenWidth = 0;
 
-    familyStack.add(f.id);
-
-    let width = coupleWidth(f.parents);
-
-    if (f.children.length) {
-        const childWidths = f.children.map(personWidth);
-
-        const childrenWidth =
-        childWidths.reduce((a, b) => a + b, 0) +
-        Math.max(0, childWidths.length - 1) * SIBLING_GAP;
-
-        width = Math.max(width, childrenWidth);
-    }
-
-    familyStack.delete(f.id);
-
-    familyWidthMemo.set(f.id, width);
-    // const parentWidth = coupleWidth(f.parents);
-
-    // if (!f.children.length) {
-    //   familyWidthMemo.set(
-    //     f.id,
-    //     parentWidth
-    //   );
-
-    //   return parentWidth;
-    // }
-
-    // const childWidths = f.children.map(
-    //   child => personWidth(child, nextStack)
-    // );
-
-    // const childrenWidth =
-    //   childWidths.reduce((a, b) => a + b, 0) +
-    //   Math.max(0, childWidths.length - 1) * SIBLING_GAP;
-
-    // const width = Math.max(
-    //   parentWidth,
-    //   childrenWidth
-    // );
-
-    // familyWidthMemo.set(
-    //   f.id,
-    //   width
-    // );
-
-    return width;
+  if (f.children.length) {
+    childrenWidth =
+      f.children.length * NODE_WIDTH +
+      Math.max(0, f.children.length - 1) * SIBLING_GAP;
   }
+
+  const width = Math.max(parentWidth, childrenWidth);
+
+  familyWidthMemo.set(f.id, width);
+
+  return width;
+}
 
   // ------------------------------------------------------------
   // 6. Connected family components
@@ -950,56 +898,133 @@ function calculatePositions(tree) {
     }
   }
 
-  // ------------------------------------------------------------
-  // 17. Align family centres
+    // ------------------------------------------------------------
+  // 17. FAMILY UNITS
   // ------------------------------------------------------------
   //
-  // Rather than moving individual children independently, move the
-  // complete sibling block.
+  // A family unit is a person together with their spouse(s)
+  // on the same generation.
   //
+  // Example:
+  //
+  //   [Orm][Maike]   <- one unit
+  //   [Astrid]       <- one unit
+  //   [Lars][Anna]   <- one unit
+  //
+  // These units are never split when centering or resolving
+  // collisions.
+  // ------------------------------------------------------------
 
-  function siblingBlock(f) {
-    return f.children.filter(
-      id => positions.has(id)
+  function getSpouseIds(id, g) {
+    const result = [];
+
+    const spouses =
+      spouseGroups.get(id) ||
+      new Set();
+
+    for (const spouse of spouses) {
+      if (
+        spouse !== id &&
+        positions.has(spouse) &&
+        generation.get(spouse) === g
+      ) {
+        result.push(spouse);
+      }
+    }
+
+    return result;
+  }
+
+  function makePersonUnit(id, g) {
+    const ids = [id];
+
+    for (const spouse of getSpouseIds(id, g)) {
+      if (!ids.includes(spouse)) {
+        ids.push(spouse);
+      }
+    }
+
+    // Keep deterministic ordering.
+    ids.sort((a, b) => {
+      if (a === id) return -1;
+      if (b === id) return 1;
+      return String(a).localeCompare(String(b));
+    });
+
+    return ids;
+  }
+
+  function unitWidth(unit) {
+    if (!unit.length) {
+      return 0;
+    }
+
+    return (
+      unit.length * NODE_WIDTH +
+      (unit.length - 1) * SPOUSE_GAP
     );
   }
 
-  function parentCenter(f) {
-    const ids = f.parents.filter(
+  function unitCenter(unit) {
+    const valid = unit.filter(
       id => positions.has(id)
     );
 
-    if (!ids.length) {
+    if (!valid.length) {
       return null;
     }
 
     return (
-      ids.reduce(
+      valid.reduce(
         (sum, id) =>
           sum + positions.get(id).x,
         0
-      ) / ids.length
+      ) / valid.length
     );
   }
 
-  function childCenter(f) {
-    const ids = siblingBlock(f);
+  function unitBounds(unit) {
+    const valid = unit.filter(
+      id => positions.has(id)
+    );
 
-    if (!ids.length) {
-      return null;
+    if (!valid.length) {
+      return {
+        left: 0,
+        right: 0,
+        center: 0,
+        width: 0
+      };
     }
 
-    return (
-      ids.reduce(
-        (sum, id) =>
-          sum + positions.get(id).x,
-        0
-      ) / ids.length
+    const xs = valid.map(
+      id => positions.get(id).x
     );
+
+    return {
+      left:
+        Math.min(...xs) -
+        NODE_WIDTH / 2,
+
+      right:
+        Math.max(...xs) +
+        NODE_WIDTH / 2,
+
+      center:
+        (
+          Math.min(...xs) +
+          Math.max(...xs)
+        ) / 2,
+
+      width:
+        Math.max(...xs) -
+        Math.min(...xs) +
+        NODE_WIDTH
+    };
   }
 
-  function moveBlock(ids, delta) {
-    for (const id of ids) {
+  function moveUnit(unit, delta) {
+    for (const id of unit) {
       if (!positions.has(id)) {
         continue;
       }
@@ -1008,266 +1033,395 @@ function calculatePositions(tree) {
     }
   }
 
-  // Multiple small passes are safer than one large correction.
-  for (let pass = 0; pass < 6; pass++) {
-    for (const f of infos) {
-      const pc = parentCenter(f);
-      const cc = childCenter(f);
 
+  // ------------------------------------------------------------
+  // 18. Build family child units
+  // ------------------------------------------------------------
+
+  function childUnits(f, g) {
+    const result = [];
+    const seen = new Set();
+
+    for (const child of f.children) {
       if (
-        pc === null ||
-        cc === null
+        !positions.has(child) ||
+        generation.get(child) !== g ||
+        seen.has(child)
       ) {
         continue;
       }
 
-      let delta = pc - cc;
+      const unit = makePersonUnit(child, g);
 
-      // Prevent one huge family from dragging everything around.
-      delta = Math.max(
-        -80,
-        Math.min(80, delta)
-      );
+      for (const id of unit) {
+        seen.add(id);
+      }
 
-      moveBlock(
-        siblingBlock(f),
-        delta * 0.55
-      );
+      result.push(unit);
+    }
+
+    return result;
+  }
+
+
+  // ------------------------------------------------------------
+  // 19. Place spouse units internally
+  // ------------------------------------------------------------
+  //
+  // This replaces the old "place spouses next to each other"
+  // code.
+  //
+  // We do NOT reposition individual parents anymore.
+  // Instead every couple is treated as one horizontal unit.
+  // ------------------------------------------------------------
+
+  for (const g of sortedGenerations) {
+    const ids = levels.get(g) || [];
+    const processed = new Set();
+
+    for (const id of ids) {
+      if (processed.has(id)) {
+        continue;
+      }
+
+      const unit =
+        makePersonUnit(id, g);
+
+      if (!unit.length) {
+        continue;
+      }
+
+      for (const member of unit) {
+        processed.add(member);
+      }
+
+      const existingCenter =
+        unitCenter(unit);
+
+      if (existingCenter === null) {
+        continue;
+      }
+
+      const width =
+        unitWidth(unit);
+
+      let x =
+        existingCenter -
+        width / 2;
+
+      for (const member of unit) {
+        positions.get(member).x =
+          x + NODE_WIDTH / 2;
+
+        x +=
+          NODE_WIDTH +
+          SPOUSE_GAP;
+      }
     }
   }
 
+
   // ------------------------------------------------------------
-  // 18. Place spouses next to each other
+  // 20. Center children underneath their parents
+  // ------------------------------------------------------------
+  //
+  // IMPORTANT:
+  //
+  // We center the COMPLETE CHILD ROW, not each child.
+  //
+  // This means:
+  //
+  //        Parent A ─ Parent B
+  //                 │
+  //        [child+spouse] [child] [child+spouse]
+  //
+  // is centered as one group.
   // ------------------------------------------------------------
 
-  for (const f of infos) {
-    if (f.parents.length < 2) {
-      continue;
-    }
-
+  function familyParentCenter(f) {
     const parents =
       f.parents.filter(
         id => positions.has(id)
       );
 
-    if (parents.length < 2) {
-      continue;
+    if (!parents.length) {
+      return null;
     }
 
-    const center =
-      parents.reduce(
-        (sum, id) =>
-          sum + positions.get(id).x,
-        0
-      ) / parents.length;
+    const xs =
+      parents.map(
+        id => positions.get(id).x
+      );
 
-    const totalWidth =
-      parents.length * NODE_WIDTH +
-      (parents.length - 1) * SPOUSE_GAP;
+    return (
+      Math.min(...xs) +
+      Math.max(...xs)
+    ) / 2;
+  }
 
-    let x =
-      center - totalWidth / 2;
+  function centerFamilyChildren(f) {
+    const parents =
+      f.parents.filter(
+        id => positions.has(id)
+      );
 
-    for (const parent of parents) {
-      positions.get(parent).x =
-        x + NODE_WIDTH / 2;
+    if (!parents.length) {
+      return;
+    }
 
-      x +=
-        NODE_WIDTH +
-        SPOUSE_GAP;
+    const g =
+      generation.get(
+        f.children.find(
+          id => positions.has(id)
+        )
+      );
+
+    if (g === undefined) {
+      return;
+    }
+
+    const units =
+      childUnits(f, g);
+
+    if (!units.length) {
+      return;
+    }
+
+    const parentCenter =
+      familyParentCenter(f);
+
+    if (parentCenter === null) {
+      return;
+    }
+
+    // Sort according to their current position.
+    units.sort(
+      (a, b) =>
+        unitCenter(a) -
+        unitCenter(b)
+    );
+
+    let totalWidth = 0;
+
+    for (let i = 0; i < units.length; i++) {
+      totalWidth +=
+        unitWidth(units[i]);
+
+      if (i < units.length - 1) {
+        totalWidth += SIBLING_GAP;
+      }
+    }
+
+    let cursor =
+      parentCenter -
+      totalWidth / 2;
+
+    for (const unit of units) {
+      const width =
+        unitWidth(unit);
+
+      const center =
+        cursor + width / 2;
+
+      const current =
+        unitCenter(unit);
+
+      if (current !== null) {
+        moveUnit(
+          unit,
+          center - current
+        );
+      }
+
+      cursor +=
+        width +
+        SIBLING_GAP;
     }
   }
 
-  // ------------------------------------------------------------
-  // 19. Collision handling by FAMILY BLOCK
-  // ------------------------------------------------------------
-  //
-  // This is the important difference from the old algorithm.
-  //
-  // We don't simply do:
-  //
-  //     person A -> person B -> person C
-  //
-  // and push them apart.
-  //
-  // Instead a generation is divided into blocks:
-  //
-  //     [couple] [sibling group] [couple] [sibling group]
-  //
-  // so moving one block doesn't destroy the relationships inside
-  // another block.
-  //
 
-  function makeGenerationBlocks(g) {
-    const ids = levels.get(g) || [];
-    const blocks = [];
+  // Multiple passes allow changes higher in the tree to
+  // propagate down into later generations.
+  for (let pass = 0; pass < 8; pass++) {
+    for (const f of infos) {
+      centerFamilyChildren(f);
+    }
+  }
+
+
+  // ------------------------------------------------------------
+  // 21. Collision resolution
+  // ------------------------------------------------------------
+  //
+  // Build independent spouse units for each generation.
+  //
+  // We deliberately do NOT merge all siblings into one block.
+  // Each child family-unit can move independently while the
+  // family row remains centered.
+  // ------------------------------------------------------------
+
+  function generationUnits(g) {
+    const ids =
+      levels.get(g) || [];
+
+    const units = [];
     const used = new Set();
 
-    // First create spouse blocks.
     for (const id of ids) {
       if (used.has(id)) {
         continue;
       }
 
-      const block = [id];
-      used.add(id);
+      const unit =
+        makePersonUnit(id, g);
 
-      const spouses =
-        spouseGroups.get(id) ||
-        new Set();
-
-      for (const spouse of spouses) {
-        if (
-          !used.has(spouse) &&
-          generation.get(spouse) === g &&
-          positions.has(spouse)
-        ) {
-          block.push(spouse);
-          used.add(spouse);
-        }
+      for (const member of unit) {
+        used.add(member);
       }
 
-      blocks.push(block);
+      units.push(unit);
     }
 
-    // Now merge people that belong to the same sibling family.
-    const merged = [];
-    const assigned = new Set();
-
-    for (const block of blocks) {
-      const expanded = [...block];
-
-      for (const f of infos) {
-        const children =
-          f.children.filter(
-            id =>
-              positions.has(id) &&
-              generation.get(id) === g
-          );
-
-        if (
-          children.length &&
-          children.some(
-            id => expanded.includes(id)
-          )
-        ) {
-          for (const child of children) {
-            if (!expanded.includes(child)) {
-              expanded.push(child);
-            }
-          }
-        }
-      }
-
-      const key = expanded
-        .slice()
-        .sort()
-        .join("|");
-
-      if (!assigned.has(key)) {
-        assigned.add(key);
-        merged.push(expanded);
-      }
-    }
-
-    return merged;
-  }
-
-  function blockBounds(block) {
-    const xs = block
-      .filter(id => positions.has(id))
-      .map(id => positions.get(id).x);
-
-    if (!xs.length) {
-      return {
-        min: 0,
-        max: 0,
-        center: 0,
-      };
-    }
-
-    return {
-      min: Math.min(...xs),
-      max: Math.max(...xs),
-      center:
-        (Math.min(...xs) +
-          Math.max(...xs)) / 2,
-    };
-  }
-
-  for (const g of sortedGenerations) {
-    const blocks =
-      makeGenerationBlocks(g);
-
-    blocks.sort(
+    units.sort(
       (a, b) =>
-        blockBounds(a).center -
-        blockBounds(b).center
+        unitBounds(a).center -
+        unitBounds(b).center
     );
 
-    for (let i = 1; i < blocks.length; i++) {
+    return units;
+  }
+
+
+  function resolveGenerationCollisions(g) {
+    const units =
+      generationUnits(g);
+
+    for (let i = 1; i < units.length; i++) {
       const previous =
-        blockBounds(blocks[i - 1]);
+        unitBounds(units[i - 1]);
 
       const current =
-        blockBounds(blocks[i]);
+        unitBounds(units[i]);
 
-      const required =
-        NODE_WIDTH +
+      const requiredGap =
         SIBLING_GAP;
 
       const overlap =
-        previous.max +
-        required -
-        current.min;
+        previous.right +
+        requiredGap -
+        current.left;
 
       if (overlap > 0) {
-        moveBlock(
-          blocks[i],
+        moveUnit(
+          units[i],
           overlap
         );
       }
     }
   }
 
-  // ------------------------------------------------------------
-  // 20. Final family-centering pass
-  // ------------------------------------------------------------
-  //
-  // Now that collisions have been resolved, make another small
-  // adjustment toward the parent/child family centre.
-  //
 
-  for (let pass = 0; pass < 3; pass++) {
-    for (const f of infos) {
-      const pc = parentCenter(f);
-      const cc = childCenter(f);
-
-      if (
-        pc === null ||
-        cc === null
-      ) {
-        continue;
-      }
-
-      const delta =
-        Math.max(
-          -35,
-          Math.min(
-            35,
-            pc - cc
-          )
-        );
-
-      moveBlock(
-        siblingBlock(f),
-        delta * 0.35
-      );
+  // Resolve collisions several times because moving one
+  // family can affect the relationship with another family.
+  for (let pass = 0; pass < 6; pass++) {
+    for (const g of sortedGenerations) {
+      resolveGenerationCollisions(g);
     }
   }
 
+
   // ------------------------------------------------------------
-  // 21. Place people that aren't connected to a family
+  // 22. Re-center family rows after collision handling
+  // ------------------------------------------------------------
+  //
+  // Collision handling may have moved a child family sideways.
+  // Pull the complete child row back toward its parents.
+  //
+  // We use a limited correction so that neighboring families
+  // don't immediately collide again.
+  // ------------------------------------------------------------
+
+  for (let pass = 0; pass < 3; pass++) {
+    for (const f of infos) {
+      const parents =
+        f.parents.filter(
+          id => positions.has(id)
+        );
+
+      if (!parents.length) {
+        continue;
+      }
+
+      const g =
+        generation.get(
+          f.children.find(
+            id => positions.has(id)
+          )
+        );
+
+      if (g === undefined) {
+        continue;
+      }
+
+      const units =
+        childUnits(f, g);
+
+      if (!units.length) {
+        continue;
+      }
+
+      const parentCenter =
+        familyParentCenter(f);
+
+      if (parentCenter === null) {
+        continue;
+      }
+
+      const left =
+        Math.min(
+          ...units.map(
+            u => unitBounds(u).left
+          )
+        );
+
+      const right =
+        Math.max(
+          ...units.map(
+            u => unitBounds(u).right
+          )
+        );
+
+      const childrenCenter =
+        (left + right) / 2;
+
+      let delta =
+        parentCenter -
+        childrenCenter;
+
+      // Small corrections only.
+      delta =
+        Math.max(
+          -25,
+          Math.min(25, delta)
+        );
+
+      for (const unit of units) {
+        moveUnit(
+          unit,
+          delta
+        );
+      }
+    }
+
+    // Make sure the correction didn't create collisions.
+    for (const g of sortedGenerations) {
+      resolveGenerationCollisions(g);
+    }
+  }
+
+
+  // ------------------------------------------------------------
+  // 23. Unconnected people
   // ------------------------------------------------------------
 
   let fallbackX = 0;
@@ -1279,7 +1433,7 @@ function calculatePositions(tree) {
 
     positions.set(id, {
       x: fallbackX,
-      y: personY(id),
+      y: personY(id)
     });
 
     fallbackX +=
@@ -1287,16 +1441,31 @@ function calculatePositions(tree) {
       SIBLING_GAP;
   }
 
+
   // ------------------------------------------------------------
-  // 22. Final centering
+  // 24. Final global centering
+  // ------------------------------------------------------------
+  //
+  // Use actual node edges, not just node centres.
   // ------------------------------------------------------------
 
   if (positions.size) {
-    const xs = [...positions.values()]
-      .map(p => p.x);
+    let minX = Infinity;
+    let maxX = -Infinity;
 
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
+    for (const position of positions.values()) {
+      minX = Math.min(
+        minX,
+        position.x -
+          NODE_WIDTH / 2
+      );
+
+      maxX = Math.max(
+        maxX,
+        position.x +
+          NODE_WIDTH / 2
+      );
+    }
 
     const centerX =
       (minX + maxX) / 2;
