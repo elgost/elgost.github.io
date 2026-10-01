@@ -1242,7 +1242,7 @@ function familyWidth(f) {
 
   // Multiple passes allow changes higher in the tree to
   // propagate down into later generations.
-  for (let pass = 0; pass < 8; pass++) {
+  for (let pass = 0; pass < 20; pass++) {
     for (const f of infos) {
       centerFamilyChildren(f);
     }
