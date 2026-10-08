@@ -1,0 +1,72 @@
+```yaml
+name: Update Family Tree JSON
+
+on:
+  push:
+    paths:
+      - 'family-tree-web/data/**/*.gramps'
+      - 'family-tree-web/json_converter.py'
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  convert-family-trees:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Identify changed Gramps files
+        id: changed
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            git ls-files -co --exclude-standard -- 'family-tree-web/data/*.gramps' 'family-tree-web/data/**/*.gramps' \
+              | sort -u > changed_gramps.txt
+          else
+            git diff --name-only \
+              --diff-filter=ACMRT \
+              "${{ github.event.before }}" \
+              "${{ github.sha }}" \
+              -- 'family-tree-web/data/*.gramps' 'family-tree-web/data/**/*.gramps' \
+              > changed_gramps.txt
+          fi
+
+          echo "Files to convert:"
+          cat changed_gramps.txt
+
+      - name: Convert changed Gramps files
+        run: |
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+
+            output="${file%.gramps}.json"
+
+            echo "Converting $file -> $output"
+            python family-tree-web/json_converter.py "$file" -o "$output"
+          done < changed_gramps.txt
+
+      - name: Commit updated JSON files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -- 'family-tree-web/data/*.json' 'family-tree-web/data/**/*.json'
+
+          if git diff --cached --quiet; then
+            echo "No JSON changes to commit."
+          else
+            git commit -m "Update family tree JSON"
+            git push
+          fi
+```
