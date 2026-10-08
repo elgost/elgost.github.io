@@ -3,7 +3,7 @@ name: Update Family Tree JSON
 on:
   push:
     paths:
-      - 'family-tree-web/data/**/*.gramps'
+      - 'family-tree-web/data/*.gramps'
       - 'family-tree-web/json_converter.py'
 
   workflow_dispatch:
