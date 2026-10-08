@@ -68,4 +68,3 @@ jobs:
             git commit -m "Update family tree JSON"
             git push
           fi
-```
