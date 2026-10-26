@@ -1,0 +1,127 @@
+<style>
+  .language-selector {
+    display: flex;
+    gap: 10px;
+    margin: 16px 0 24px;
+  }
+
+  .language-selector button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: #f0f0f0;
+    font-size: 25px;
+    cursor: pointer;
+  }
+
+  .language-selector button.active {
+    border-color: #2563eb;
+  }
+
+  .recipe-list {
+    list-style: none;
+    padding: 0;
+  }
+
+  .recipe-list li {
+    margin: 10px 0;
+  }
+</style>
+
+<h1>Sweet Recipes</h1>
+
+<div class="language-selector" aria-label="Recipe language">
+  
+  <button data-lang="noNB" aria-label="Norwegian Bokmål"
+          title="Norsk">🇳🇴</button>
+  <button data-lang="deDE" aria-label="German"
+          title="Deutsch">🇩🇪</button>
+  <button data-lang="enGB" aria-label="English"
+          title="English">🇬🇧</button>
+</div>
+
+<ul id="recipe-list" class="recipe-list"></ul>
+
+<script>
+  const recipes = [
+    {
+      title: {
+        noNB: "Daimkake",
+        deDE: "Daimkuchen"
+      },
+      files: {
+        noNB: "daimkake noNB.md",
+        deDE: "daimkuchen deDE.md"
+      }
+    },
+    {
+      title: {
+        enGB: "Chocolate chip cookies",
+      },
+      files: {
+        enGB: "Chocolate chip cookies enGB.md",
+      }
+    },
+    {
+      title: {
+        noNB: "Gelekake",
+      },
+      files: {
+        noNB: "Gelekake noNB.md",
+      }
+    },
+    {
+      title: {
+        noNB: "Spaghettiis med jordbær",
+        deDE: "Spaghettieis mit Erdbeeren"
+      },
+      files: {
+        noNB: "Spaghettiis med jordbær noNB.md",
+        deDE: "Spaghettieis mit Erdbeeren deDE.md"
+      }
+    }
+  ];
+
+  const languages = ["enGB", "noNB", "deDE"];
+  const list = document.getElementById("recipe-list");
+  const buttons = document.querySelectorAll(
+    ".language-selector button"
+  );
+
+  function setLanguage(language) {
+    buttons.forEach(button => {
+      const active = button.dataset.lang === language;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+
+    list.replaceChildren();
+
+    recipes.forEach(recipe => {
+      const file = recipe.files[language];
+      if (!file) return;
+
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+
+      link.href = file.replace(/\.md$/, ".html");
+      link.textContent = recipe.title[language];
+
+      item.appendChild(link);
+      list.appendChild(item);
+    });
+
+    localStorage.setItem("recipe-language", language);
+  }
+
+  buttons.forEach(button => {
+    button.addEventListener("click", () => {
+      setLanguage(button.dataset.lang);
+    });
+  });
+
+  const saved = localStorage.getItem("recipe-language");
+  setLanguage(languages.includes(saved) ? saved : "enGB");
+</script>
