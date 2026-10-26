@@ -1,24 +1,43 @@
+---
+layout: default
+title: Sweet Recipes
+---
 <style>
   .language-selector {
-    display: flex;
-    gap: 10px;
-    margin: 16px 0 24px;
-  }
+  display: flex;
+  gap: 12px;
+  margin: 16px 0 24px;
+}
 
-  .language-selector button {
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    background: #f0f0f0;
-    font-size: 25px;
-    cursor: pointer;
-  }
+.language-selector button {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid transparent;
+  background: #eee;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
-  .language-selector button.active {
-    border-color: #2563eb;
-  }
+.language-selector button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.language-selector button.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+
+.language-selector button:hover {
+  transform: scale(1.08);
+}
 
   .recipe-list {
     list-style: none;
@@ -33,13 +52,17 @@
 <h1>Sweet Recipes</h1>
 
 <div class="language-selector" aria-label="Recipe language">
-  
-  <button data-lang="noNB" aria-label="Norwegian Bokmål"
-          title="Norsk">🇳🇴</button>
-  <button data-lang="deDE" aria-label="German"
-          title="Deutsch">🇩🇪</button>
-  <button data-lang="enGB" aria-label="English"
-          title="English">🇬🇧</button>
+  <button data-lang="enGB" aria-label="English" title="English">
+    <img src="https://flagcdn.com/gb.svg" alt="">
+  </button>
+
+  <button data-lang="noNB" aria-label="Norwegian Bokmål" title="Norsk">
+    <img src="https://flagcdn.com/no.svg" alt="">
+  </button>
+
+  <button data-lang="deDE" aria-label="German" title="Deutsch">
+    <img src="https://flagcdn.com/de.svg" alt="">
+  </button>
 </div>
 
 <ul id="recipe-list" class="recipe-list"></ul>
@@ -52,8 +75,8 @@
         deDE: "Daimkuchen"
       },
       files: {
-        noNB: "daimkake noNB.md",
-        deDE: "daimkuchen deDE.md"
+        noNB: "Daimkake noNB.md",
+        deDE: "Daimkuchen deDE.md"
       }
     },
     {
