@@ -24,7 +24,8 @@ Krem
 
 ## Fremgangsmåte
 
-Sukkerbunn
+### Sukkerbunn
+
 1. Forvarm stekeovnen til 170 °C.
 2. Pisk egg og sukker til en luftig og stiv eggedosis, 6-8 minutter.
 3. Sikt mel og bakepulver over eggedosisen.
@@ -34,7 +35,8 @@ Sukkerbunn
 7. Sett formen på nederste rille i ovnen og stek i 35-40 minutter, til sukkerbrødet har hevet seg godt, er gyllent og gjennomstekt.
 8. La sukkerbrødet stå i formen et par minutter før det hvelves over på rist. Legg over et rent kjøkkenhåndkle og avkjøl sukkerbrødet.
 
-Krem
+### Krem
+
 1. Hakk opp 3 av daimbitene i små biter (Det er 2 daimbiter i 1 stor daim).
 2. Tøm kremfløte, vaniljesukker og bakekakao i en bolle. Pisk til kremen nesten er ferdig. 
 3. Tilsett de opphakkede daimbitene.

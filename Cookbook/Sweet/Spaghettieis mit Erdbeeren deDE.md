@@ -21,7 +21,8 @@ Geraspelte weiße Schokolade
 
 ## Zubereitung
 
-1. Mascarpone mit Quark, Puderzucker, Zitronensaft und Vanillezucker verrühren. Sahne steif schlagen und unterheben.
-2. Die Erdbeeren antauen, pürieren und mit Puderzucker nach Geschmack süßen. Dann über die Quark-Mascarponemasse geben.
-3. Mit geraspelter weißer Kuvertüre verzieren. 
-4. Mindestens 2 Stunden im Kühlschrank kaltstellen!
+1. Mascarpone mit Quark, Puderzucker, Zitronensaft und Vanillezucker verrühren. 
+2. Sahne steif schlagen und unterheben.
+3. Die Erdbeeren antauen, pürieren und mit Puderzucker nach Geschmack süßen. Dann über die Quark-Mascarponemasse geben.
+4. Mit geraspelter weißer Kuvertüre verzieren. 
+5. Mindestens 2 Stunden im Kühlschrank kaltstellen!
